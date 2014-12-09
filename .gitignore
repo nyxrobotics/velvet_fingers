@@ -33,7 +33,6 @@ build
 *.obj
 *.urdf
 *.dae
-*.stl
 *.zip
 *.a
 *.dll

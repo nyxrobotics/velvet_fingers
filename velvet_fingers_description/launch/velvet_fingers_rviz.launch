@@ -16,6 +16,6 @@
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher"/>
 
   <!-- Show in Rviz   -->
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find velvet_fingers_description)/launch/lbr_iiwa.rviz"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find velvet_fingers_description)/launch/velvet_fingers.rviz"/>
 
 </launch>
