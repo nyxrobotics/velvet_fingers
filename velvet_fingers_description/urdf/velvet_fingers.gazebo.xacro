@@ -11,6 +11,15 @@
       </plugin>
     </gazebo>
 
+   <!-- Plugin for the mimic o/c joint - AFAIK, that shouldn't be necessary any more starting with Gazebo 3.0 -->
+    <gazebo>
+      <plugin name="mimic_plugin" filename="libgazebo_mimic_plugin.so">
+       <joint>${name}_joint_1</joint>
+        <mimicJoint>${name}_joint_2</mimicJoint>
+        <multiplier>1.0</multiplier>
+      </plugin>
+    </gazebo> 
+
     <!-- Palm -->
     <gazebo reference="${name}_palm">
       <material>Gazebo/Red</material>

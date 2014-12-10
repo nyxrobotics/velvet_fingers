@@ -7,7 +7,7 @@ project(velvet_fingers_control)
 find_package(catkin REQUIRED)
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(gazebo REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -48,10 +48,10 @@ find_package(catkin REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES rrbot_control
-#  CATKIN_DEPENDS other_catkin_pkg
-#  DEPENDS system_lib
+   INCLUDE_DIRS include
+   LIBRARIES gazebo_mimic_plugin
+   CATKIN_DEPENDS gazebo_ros
+   DEPENDS gazebo_ros
 )
 
 ###########
@@ -60,24 +60,16 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-# include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+#include_directories(include ${catkin_INCLUDE_DIRS})
+link_directories(${GAZEBO_LIBRARY_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${GAZEBO_INCLUDE_DIRS})
 
 ## Declare a cpp library
-# add_library(rrbot_control
-#   src/${PROJECT_NAME}/rrbot_control.cpp
-# )
-
-## Declare a cpp executable
-# add_executable(rrbot_control_node src/rrbot_control_node.cpp)
-
-## Add cmake target dependencies of the executable/library
-## as an example, message headers may need to be generated before nodes
-# add_dependencies(rrbot_control_node rrbot_control_generate_messages_cpp)
+add_library(gazebo_mimic_plugin src/gazebo_mimic_plugin/mimic_plugin.cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(rrbot_control_node
-#   ${catkin_LIBRARIES}
-# )
+#target_link_libraries(arm_controller ${catkin_LIBRARIES})
+target_link_libraries(gazebo_mimic_plugin ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
 
 #############
 ## Install ##
