@@ -77,7 +77,7 @@ find_package(catkin REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES kuka_velvet_fingers_gazebo
+#  LIBRARIES velvet_fingers_gazebo
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
@@ -91,19 +91,19 @@ catkin_package(
 # include_directories(include)
 
 ## Declare a cpp library
-# add_library(kuka_velvet_fingers_gazebo
-#   src/${PROJECT_NAME}/kuka_velvet_fingers_gazebo.cpp
+# add_library(velvet_fingers_gazebo
+#   src/${PROJECT_NAME}/velvet_fingers_gazebo.cpp
 # )
 
 ## Declare a cpp executable
-# add_executable(kuka_velvet_fingers_gazebo_node src/kuka_velvet_fingers_gazebo_node.cpp)
+# add_executable(velvet_fingers_gazebo_node src/velvet_fingers_gazebo_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
-# add_dependencies(kuka_velvet_fingers_gazebo_node kuka_velvet_fingers_gazebo_generate_messages_cpp)
+# add_dependencies(velvet_fingers_gazebo_node velvet_fingers_gazebo_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
-# target_link_libraries(kuka_velvet_fingers_gazebo_node
+# target_link_libraries(velvet_fingers_gazebo_node
 #   ${catkin_LIBRARIES}
 # )
 
@@ -122,7 +122,7 @@ catkin_package(
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS kuka_velvet_fingers_gazebo kuka_velvet_fingers_gazebo_node
+# install(TARGETS velvet_fingers_gazebo velvet_fingers_gazebo_node
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -147,7 +147,7 @@ catkin_package(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_kuka_velvet_fingers_gazebo.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_velvet_fingers_gazebo.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

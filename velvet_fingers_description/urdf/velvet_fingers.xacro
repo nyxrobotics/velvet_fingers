@@ -3,8 +3,6 @@
 
   <!-- Import all Gazebo-customization elements, including Gazebo colors -->
   <xacro:include filename="$(find velvet_fingers_description)/urdf/velvet_fingers.gazebo.xacro" />
-  <!-- Import Rviz colors -->
-  <xacro:include filename="$(find velvet_fingers_description)/urdf/materials.xacro" />
   <!-- Import Transmissions -->
   <xacro:include filename="$(find velvet_fingers_description)/urdf/velvet_fingers.transmission.xacro" />
   <!-- Include Utilities -->
