@@ -5,6 +5,8 @@
   <xacro:include filename="$(find velvet_fingers_description)/urdf/materials.xacro" />
   <!-- Import the velvet fingers macro -->
   <xacro:include filename="$(find velvet_fingers_description)/urdf/velvet_fingers.xacro"/>
+ <!-- Gazebo plugins -->
+  <xacro:include filename="$(find velvet_fingers_description)/gazebo/gazebo.urdf.xacro"/>
 
   <!-- Fix to world just for testing -->
   <link name="world"/>

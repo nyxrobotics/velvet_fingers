@@ -4,14 +4,7 @@
 
   <xacro:macro name="velvet_fingers_gazebo" params="name">
 
-    <!-- ros_control plugin -->
-    <gazebo>
-      <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
-	<robotNamespace>/velvet_fingers</robotNamespace>
-      </plugin>
-    </gazebo>
-
-   <!-- Plugin for the mimic o/c joint - AFAIK, that shouldn't be necessary any more starting with Gazebo 3.0 -->
+  <!-- Plugin for the mimic o/c joint - AFAIK, that shouldn't be necessary any more starting with Gazebo 3.0 -->
     <gazebo>
       <plugin name="mimic_plugin" filename="libgazebo_mimic_plugin.so">
        <joint>${name}_joint_1</joint>
