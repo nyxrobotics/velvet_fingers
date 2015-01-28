@@ -4,6 +4,9 @@ project(velvet_interface_node)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+find_package(cmake_modules REQUIRED )
+find_package(custom_cmake_modules REQUIRED )
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -17,6 +20,8 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 find_package(Boost REQUIRED COMPONENTS thread)
+find_package(Qhull REQUIRED)
+find_package(Eigen REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -92,7 +97,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES velvet_interface_node
   CATKIN_DEPENDS ft_msgs velvet_msgs sensor_msgs dynamic_reconfigure roscpp rospy
-#  DEPENDS system_lib
+  DEPENDS libqhull 
 )
 
 ###########
@@ -105,6 +110,8 @@ catkin_package(
 include_directories(
   ${catkin_INCLUDE_DIRS}
 )
+include_directories(include ${EIGEN_INCLUDE_DIRS})
+include_directories(include ${QHULL_INCLUDE_DIRS})
 
 ## Declare a cpp library
 # add_library(velvet_interface_node
@@ -124,6 +131,7 @@ add_dependencies(velvet_node ${PROJECT_NAME}_gencfg)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(velvet_node
    ${catkin_LIBRARIES}
+   ${QHULL_LIBRARIES}
 )
 
 #############

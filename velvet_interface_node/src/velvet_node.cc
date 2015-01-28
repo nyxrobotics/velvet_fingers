@@ -11,6 +11,9 @@
 #include <ft_msgs/FTArray.h>
 
 #include <boost/thread/mutex.hpp>
+#include <qhull/qhull.h>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 // Dynamic reconfigure includes.
 #include <dynamic_reconfigure/server.h>
@@ -45,6 +48,9 @@ private:
 	open_curr, belt1_curr, belt2_curr, belt3_curr, belt4_curr;
   float ftb1[6], ftb2[6], ftb3[6], ftb4[6];
   bool use_ft;
+  bool limit_closing_speed;
+  double closing_speed;
+  double min_ramp_time;
 
   //reconfigure stuff
   dynamic_reconfigure::Server<velvet_interface_node::velvet_nodeConfig> dr_srv;
@@ -61,6 +67,7 @@ private:
   void publishStatus();
 
   bool isValidGrasp(float open_angle, float open_angle_thresh, float p1, float p2, float min_phalange_delta, bool check_phalanges);
+  bool isForceClosure();
   void finishGrasp(velvet_interface_node::SmartGrasp::Response &res, float init_angle, bool success);
 
   double getDoubleTime() {
@@ -94,6 +101,9 @@ VelvetGripperNode::VelvetGripperNode()
 
   //read in parameters
   nh_.param("use_ft", use_ft, false);
+  nh_.param("limit_closing_speed", limit_closing_speed, false);
+  nh_.param("closing_speed_rad_s", closing_speed, 0.5);
+  nh_.param("min_ramp_time_ms", min_ramp_time, 1000.);
   nh_.param<std::string>("velvet_topic_name", velvet_state_topic,"/velvet_state");
   nh_.param<std::string>("ft_topic_name", ft_sensors_topic,"/ft_topic");
   nh_.param<std::string>("set_pos_name", set_pos_name,"/set_pos");
@@ -141,7 +151,7 @@ void VelvetGripperNode::publishStatus() {
 void VelvetGripperNode::stateCallback( const velvet_msgs::GripperStatePtr& msg) {
     data_mutex.lock();
     //update gripper state variables
-    my_angle = msg->oc.val;
+    my_angle = msg->oc.val / 1000.; //from mRad
     finger1_angle = msg->pl.val ;
     finger2_angle = msg->pr.val ;
     belt1_pos = msg->blb.val ;
@@ -195,12 +205,19 @@ void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
 
 //checks if a grasp is stable
 bool VelvetGripperNode::isValidGrasp(float open_angle, float open_angle_thresh, float p1, float p2, float min_phalange_delta, bool check_phalanges) {
-   //TODO: add option to do checks based on ft values
-   if(open_angle > open_angle_thresh) return false;
-   if(check_phalanges) {
-	if(p1 < min_phalange_delta && p2 < min_phalange_delta) return false;
-   } 
-   return true;
+    if(!use_ft) {
+	if(open_angle > open_angle_thresh) return false;
+	if(check_phalanges) {
+	    if(p1 < min_phalange_delta && p2 < min_phalange_delta) return false;
+	} 
+    } else {
+	return isForceClosure();
+    }
+    return true;
+}
+  
+bool VelvetGripperNode::isForceClosure() {
+
 }
   
 void VelvetGripperNode::finishGrasp(velvet_interface_node::SmartGrasp::Response &res, float init_angle, bool success) {
@@ -246,15 +263,26 @@ bool VelvetGripperNode::request_pos(velvet_interface_node::VelvetToPos::Request 
     if(req.angle < 0 || req.angle > M_PI/2) {
 	return false;
     }
+    float my_angle_here;
+    if(limit_closing_speed) {
+	data_mutex.lock();
+	my_angle_here = my_angle;
+	data_mutex.unlock();
+    }
     //send request on set_pos
     velvet_msgs::SetPos poscall;
     poscall.request.id = 0;
     poscall.request.pos = req.angle * 1000.; //mRad
-    //TODO: set time depending on my_angle-req.angle
-    poscall.request.time = 3000; //3 sec
+    
+    if(limit_closing_speed) {
+	poscall.request.time = fabsf(my_angle_here-req.angle) / closing_speed;
+	if(poscall.request.time < min_ramp_time) poscall.request.time = min_ramp_time;
+    } else {
+	poscall.request.time = 3000; //3 sec
+    }
     return set_pos_.call(poscall);
 }
-//NOTE: this only works for velvet 2.0 which has the appropriate curent sensors
+
 bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request  &req,
     velvet_interface_node::SmartGrasp::Response &res ) {
 
@@ -267,87 +295,101 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 
     std::cerr<<"starting smart grasp, thresholds are "<<current_threshold_contact<<" "<<current_threshold_final<<std::endl;
 
-#if 0
     bool success_grasp = false;
     double ZERO_MOVEMENT_BELT = 0.01;
     int N_ZERO_BELTS = 10;
     int N_ZERO_OPEN = 5;
     double T_MAX_SEC = 25;
+    float T_MIN_BELTS = 3000; //3 secs 
     double t_start = getDoubleTime();
     double tnow = 0, t_start_belts;
-    
-    gripper_mutex_.lock();
-    
+   
+    data_mutex.lock(); 
     double initial_angle = my_angle;
-    //TODO: note: this may need to go back in.
-    //gripper_comm->setTargetCurrent(50,0);
-    //sleep(2);
-    gripper_comm->setTargetCurrent(current_threshold_contact,0);
-    usleep(1000);
+    data_mutex.unlock(); 
 
-    float my_angle_i, my_angle_last, finger1_angle_i, finger2_angle_i, belt1_pos_last, belt2_pos_last, belt1_pos_i, belt2_pos_i;
+    velvet_msgs::SetCur curcall;
+    velvet_msgs::SetPos poscall;	
+    curcall.request.id = 0;
+    curcall.request.curr = current_threshold_contact;
+    curcall.request.time = 2000; //2 seconds
+    if(!set_cur_.call(curcall)) {
+	std::cerr<<"Could not call set_cur service\n";
+	this->finishGrasp(res, initial_angle, success_grasp);
+	return true;
+    }
+    //sleep for ramp to start
+    sleep(1);
+
+    float my_angle_last, belt1_pos_last, belt2_pos_last;
     float d_angle, d_belt1, d_belt2, d_finger1, d_finger2;
     int n_zero_belt1=0, n_zero_belt2=0, n_zero_open=0; 
     
-    gripper_comm->getStatus(my_angle_i, finger1_angle_i, finger2_angle_i, belt1_pos_last, belt2_pos_last, open_curr, finger1_curr, finger2_curr);
-
-    belt1_pos_i = belt1_pos_last;
-    belt2_pos_i = belt2_pos_last;
-    my_angle_last = my_angle_i;
-    
-    gripper_mutex_.unlock();
+    data_mutex.lock();
+    my_angle_last = my_angle;
+    belt1_pos_last = belt1_pos;
+    belt2_pos_last = belt2_pos;
+    data_mutex.unlock();
    
-    //monitor when opening angle stops changing 
-    while(n_zero_open < N_ZERO_OPEN) {
-	gripper_mutex_.lock();
-	gripper_comm->getStatus(my_angle, finger1_angle, finger2_angle, belt1_pos, belt2_pos, open_curr, finger1_curr, finger2_curr);
-	gripper_mutex_.unlock();
-        this->publishStatusT();
-	d_angle = fabsf(my_angle - my_angle_last);
-	my_angle_last = my_angle;
-	if(d_angle < 0.01) {
-	    n_zero_open++;
-	    std::cerr<<n_zero_open<<" "<<d_angle<<std::endl;
-	} else {
-	    n_zero_open = 0;
+    if(!use_ft) {
+	//monitor when opening angle stops changing 
+	while(n_zero_open < N_ZERO_OPEN) {
+	    data_mutex.lock();
+	    d_angle = fabsf(my_angle - my_angle_last);
+	    my_angle_last = my_angle;
+	    data_mutex.unlock();
+
+	    if(d_angle < 0.01) {
+		n_zero_open++;
+		std::cerr<<n_zero_open<<" "<<d_angle<<std::endl;
+	    } else {
+		n_zero_open = 0;
+	    }
+	    usleep(200000); //FIXME: this needs to be checked
+	    tnow = getDoubleTime();
+	    if(tnow - t_start > T_MAX_SEC) {
+		std::cerr<<"TIMED OUT on approach\n";
+		this->finishGrasp(res, initial_angle, false);
+		return true;
+	    }
 	}
-	usleep(200000);
-	tnow = getDoubleTime();
-	if(tnow - t_start > T_MAX_SEC) {
-	    std::cerr<<"TIMED OUT on approach\n";
+    } else {
+	//monitor the force vectors on belts 3 and 4
+	//if force magnitude > thresh 
+	//set open current to last measured value
+    }
+
+    data_mutex.lock();
+    my_angle_last = my_angle;
+    data_mutex.unlock();
+
+    if(my_angle_last < ANGLE_CLOSED) {
+	std::cerr<<"CONTACT!!\n Switch on belts!\n";
+	t_start_belts = getDoubleTime();
+	poscall.request.id = 1;
+	poscall.request.pos = MAX_BELT_TRAVEL;
+	poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*500; // half of remaining time
+	if(poscall.request.time < T_MIN_BELTS) poscall.request.time = T_MIN_BELTS; //give it at least T_MIN seconds to avoid crazy jumps
+	if(!set_pos_.call(poscall)) {
+	    std::cerr<<"couldn't call pos service\n";
 	    this->finishGrasp(res, initial_angle, false);
 	    return true;
 	}
-    }
-
-    //gripper is not closing anymore. check if it is empty:
-    gripper_mutex_.lock();
-    gripper_comm->getStatus(my_angle, finger1_angle, finger2_angle, belt1_pos, belt2_pos, open_curr, finger1_curr, finger2_curr);
-
-    if(my_angle < ANGLE_CLOSED) {
-	std::cerr<<"CONTACT!!\n Switch on belts!\n";
-	gripper_comm->setTargetPos(MAX_BELT_TRAVEL,1,10);
-	t_start_belts = getDoubleTime();
     } else {
-	std::cerr<<"NOTHING INSIDE GRIPPER, FAIL\n";
-	gripper_mutex_.unlock();
-	
+	std::cerr<<"Probably NOTHING INSIDE GRIPPER, FAIL\n";
 	this->finishGrasp(res, initial_angle, false);
 	return true;
     }
-    gripper_mutex_.unlock();
 
 
-    while(!success_grasp) {    
-	gripper_mutex_.lock();
-	gripper_comm->getStatus(my_angle, finger1_angle, finger2_angle, belt1_pos, belt2_pos, open_curr, finger1_curr, finger2_curr);
-	gripper_mutex_.unlock();
-        this->publishStatusT();
-	
+    while(!success_grasp) {  
+        data_mutex.lock();	
 	d_belt1 = fabsf(belt1_pos_last - belt1_pos);
 	d_belt2 = fabsf(belt2_pos_last - belt2_pos);
 	belt1_pos_last = belt1_pos;
 	belt2_pos_last = belt2_pos;
+        data_mutex.unlock();	
+
 	n_zero_belt1 = d_belt1 < ZERO_MOVEMENT_BELT ? n_zero_belt1+1 : 0; 
 	n_zero_belt2 = d_belt2 < ZERO_MOVEMENT_BELT ? n_zero_belt2+2 : 0; 
 
@@ -368,21 +410,35 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	if((n_zero_belt1 > N_ZERO_BELTS && n_zero_belt2 > N_ZERO_BELTS) || tnow - t_start > T_MAX_SEC) {
 	    std::cerr<<"BELTS HAVE BLOCKED (or time is up)!\n";
 	    std::cerr<<"ENABLE AND SET CURRENT\n";
-	    gripper_mutex_.lock();
-	    gripper_comm->setTargetCurrent(current_threshold_final,0);
-	    gripper_comm->setTargetCurrent(0,1);
-	    gripper_mutex_.unlock();
+	    
+	    //set belt current to 0
+	    curcall.request.id = 1;
+	    curcall.request.curr = 0;
+	    curcall.request.time = 1000; //1 seconds
+	    if(!set_cur_.call(curcall)) {
+		std::cerr<<"Could not call set_cur service\n";
+		this->finishGrasp(res, initial_angle, success_grasp);
+		return true;
+	    }
+	    //set oc current to final threshold
+	    curcall.request.id = 0;
+	    curcall.request.curr = current_threshold_final;
+	    curcall.request.time = 2000; //2 seconds
+	    if(!set_cur_.call(curcall)) {
+		std::cerr<<"Could not call set_cur service\n";
+		this->finishGrasp(res, initial_angle, success_grasp);
+		return true;
+	    }
 
 	    sleep(2);
 
-	    gripper_mutex_.lock();
-	    gripper_comm->getStatus(my_angle, finger1_angle, finger2_angle, belt1_pos, belt2_pos, open_curr, finger1_curr, finger2_curr);
-	    d_finger1 = fabsf(finger1_angle - finger1_angle_i);
-	    d_finger2 = fabsf(finger2_angle - finger2_angle_i);
-	    gripper_mutex_.unlock();
-	    this->publishStatusT();
+	    data_mutex.lock();
+	    my_angle_last = my_angle;
+	    d_finger1 = fabsf(finger1_angle);
+	    d_finger2 = fabsf(finger2_angle);
+	    data_mutex.unlock();
 
-	    success_grasp = isValidGrasp(my_angle, ANGLE_CLOSED, d_finger1, d_finger2, MIN_PHALANGE_DELTA, CHECK_PHALANGES);
+	    success_grasp = isValidGrasp(my_angle_last, ANGLE_CLOSED, d_finger1, d_finger2, MIN_PHALANGE_DELTA, CHECK_PHALANGES);
 	    this->finishGrasp(res, initial_angle, success_grasp);
 	    
 	    return true;
@@ -392,7 +448,6 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 
     std::cerr<<"THIS SHOULD NOT HAPPEN\n";
     this->finishGrasp(res, initial_angle, success_grasp);
-#endif
     return true;
 }
 
