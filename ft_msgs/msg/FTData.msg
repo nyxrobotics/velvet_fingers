@@ -5,10 +5,3 @@ float32 fz
 float32 tx
 float32 ty
 float32 tz
-#calibrated values?
-float32 cfx
-float32 cfy
-float32 cfz
-float32 ctx
-float32 cty
-float32 ctz
