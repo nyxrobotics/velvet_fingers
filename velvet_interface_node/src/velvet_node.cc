@@ -51,6 +51,7 @@ private:
   bool limit_closing_speed;
   double closing_speed;
   double min_ramp_time;
+  double contact_force_t;
 
   //reconfigure stuff
   dynamic_reconfigure::Server<velvet_interface_node::velvet_nodeConfig> dr_srv;
@@ -104,6 +105,7 @@ VelvetGripperNode::VelvetGripperNode()
   nh_.param("limit_closing_speed", limit_closing_speed, false);
   nh_.param("closing_speed_rad_s", closing_speed, 0.5);
   nh_.param("min_ramp_time_ms", min_ramp_time, 1000.);
+  nh_.param("contact_force_t", contact_force_t, 10.);
   nh_.param<std::string>("velvet_topic_name", velvet_state_topic,"/velvet_state");
   nh_.param<std::string>("ft_topic_name", ft_sensors_topic,"/ft_topic");
   nh_.param<std::string>("set_pos_name", set_pos_name,"/set_pos");
@@ -349,14 +351,44 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	    tnow = getDoubleTime();
 	    if(tnow - t_start > T_MAX_SEC) {
 		std::cerr<<"TIMED OUT on approach\n";
-		this->finishGrasp(res, initial_angle, false);
+		this->finishGrasp(res, my_angle_last, false);
 		return true;
 	    }
 	}
     } else {
 	//monitor the force vectors on belts 3 and 4
-	//if force magnitude > thresh 
-	//set open current to last measured value
+	Eigen::Vector3f fb3, fb4;
+	data_mutex.lock();
+	fb3(0)=ftb3[0];
+	fb3(1)=ftb3[1];
+	fb3(2)=ftb3[2];
+	fb4(0)=ftb4[0];
+	fb4(1)=ftb4[1];
+	fb4(2)=ftb4[2];
+	my_angle_last = my_angle;
+	data_mutex.unlock();
+	//wait for force magnitude > thresh 
+	while(fb3.norm() < contact_force_t || fb4.norm() < contact_force_t) {
+
+	    data_mutex.lock();
+	    fb3(0)=ftb3[0];
+	    fb3(1)=ftb3[1];
+	    fb3(2)=ftb3[2];
+	    fb4(0)=ftb4[0];
+	    fb4(1)=ftb4[1];
+	    fb4(2)=ftb4[2];
+	    my_angle_last = my_angle;
+	    data_mutex.unlock();
+
+	    usleep(200000); //FIXME: this needs to be checked
+	    tnow = getDoubleTime();
+	    if(tnow - t_start > T_MAX_SEC) {
+		std::cerr<<"TIMED OUT on approach\n";
+		this->finishGrasp(res, my_angle_last, false);
+		return true;
+	    }
+
+	}
     }
 
     data_mutex.lock();
