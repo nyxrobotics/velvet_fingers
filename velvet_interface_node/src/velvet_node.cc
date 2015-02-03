@@ -265,6 +265,7 @@ bool VelvetGripperNode::request_pos(velvet_interface_node::VelvetToPos::Request 
     if(req.angle < 0 || req.angle > M_PI/2) {
 	return false;
     }
+    ROS_INFO("Sending gripper to pos %f",req.angle);
     float my_angle_here;
     if(limit_closing_speed) {
 	data_mutex.lock();
@@ -472,7 +473,7 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 
 	    success_grasp = isValidGrasp(my_angle_last, ANGLE_CLOSED, d_finger1, d_finger2, MIN_PHALANGE_DELTA, CHECK_PHALANGES);
 	    this->finishGrasp(res, initial_angle, success_grasp);
-	    
+	    ROS_INFO("Grasping finished, success? %d",success_grasp); 
 	    return true;
 	}
 	usleep(10000);

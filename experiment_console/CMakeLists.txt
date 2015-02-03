@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   cmake_modules
   tf
   eigen_conversions
+  tf_conversions
   sensor_msgs
   geometry_msgs
   message_generation
@@ -89,7 +90,7 @@ find_package(Eigen REQUIRED)
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES experiment_console
-  CATKIN_DEPENDS ft_msgs velvet_msgs geometry_msgs sensor_msgs cmake_modules tf eigen_conversions velvet_interface_node
+  CATKIN_DEPENDS ft_msgs velvet_msgs geometry_msgs sensor_msgs cmake_modules tf eigen_conversions velvet_interface_node tf_conversions
 #  DEPENDS system_lib
 )
 
