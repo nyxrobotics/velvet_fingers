@@ -121,9 +121,9 @@ VelvetGripperNode::VelvetGripperNode()
   request_pos_ = nh_.advertiseService("gripper_pos", &VelvetGripperNode::request_pos, this);;
   
   gripper_status_publisher_ = ros::NodeHandle().advertise<sensor_msgs::JointState>("joint_states", 10); 
-  arduino_state_sub_ = n_.subscribe(velvet_state_topic, 1, &VelvetGripperNode::stateCallback, this);
+  arduino_state_sub_ = n_.subscribe(velvet_state_topic, 10, &VelvetGripperNode::stateCallback, this);
   if(use_ft) {
-      force_torque_sub_ = n_.subscribe(ft_sensors_topic, 1, &VelvetGripperNode::ftCallback, this);
+      force_torque_sub_ = n_.subscribe(ft_sensors_topic, 10, &VelvetGripperNode::ftCallback, this);
   }
   
   set_pos_ = n_.serviceClient<velvet_msgs::SetPos>(set_pos_name);
@@ -401,8 +401,9 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	t_start_belts = getDoubleTime();
 	poscall.request.id = 1;
 	poscall.request.pos = MAX_BELT_TRAVEL;
-	poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*500; // half of remaining time
+	poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*200; // 1/5 of remaining time
 	if(poscall.request.time < T_MIN_BELTS) poscall.request.time = T_MIN_BELTS; //give it at least T_MIN seconds to avoid crazy jumps
+	ROS_INFO("belts should move %f mm in %f sec", poscall.request.pos, poscall.request.time);
 	if(!set_pos_.call(poscall)) {
 	    std::cerr<<"couldn't call pos service\n";
 	    this->finishGrasp(res, initial_angle, false);
@@ -444,15 +445,6 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	    std::cerr<<"BELTS HAVE BLOCKED (or time is up)!\n";
 	    std::cerr<<"ENABLE AND SET CURRENT\n";
 	    
-	    //set belt current to 0
-	    curcall.request.id = 1;
-	    curcall.request.curr = 0;
-	    curcall.request.time = 1000; //1 seconds
-	    if(!set_cur_.call(curcall)) {
-		std::cerr<<"Could not call set_cur service\n";
-		this->finishGrasp(res, initial_angle, success_grasp);
-		return true;
-	    }
 	    //set oc current to final threshold
 	    curcall.request.id = 0;
 	    curcall.request.curr = current_threshold_final;
@@ -463,12 +455,22 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 		return true;
 	    }
 
-	    sleep(2);
+	    //set belt current to 0
+	    curcall.request.id = 1;
+	    curcall.request.curr = 0;
+	    curcall.request.time = 1000; //1 seconds
+	    if(!set_cur_.call(curcall)) {
+		std::cerr<<"Could not call set_cur service\n";
+		this->finishGrasp(res, initial_angle, success_grasp);
+		return true;
+	    }
+	    sleep(1);
 
 	    data_mutex.lock();
 	    my_angle_last = my_angle;
 	    d_finger1 = fabsf(finger1_angle);
 	    d_finger2 = fabsf(finger2_angle);
+	    ROS_INFO("my angle is %f",my_angle);
 	    data_mutex.unlock();
 
 	    success_grasp = isValidGrasp(my_angle_last, ANGLE_CLOSED, d_finger1, d_finger2, MIN_PHALANGE_DELTA, CHECK_PHALANGES);
@@ -488,7 +490,11 @@ int main( int argc, char* argv[] )
 {
     ros::init(argc, argv, "velvet_node");
     VelvetGripperNode gripperNode;
-    ros::spin();
+    ros::AsyncSpinner spinner(4); // Use 4 threads
+    spinner.start();
+    ros::waitForShutdown();
+
+    //ros::spin();
     return 0;
 }
 

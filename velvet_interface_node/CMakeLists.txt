@@ -4,7 +4,7 @@ project(velvet_interface_node)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-set (CMAKE_BUILD_TYPE Debug)
+set (CMAKE_BUILD_TYPE Release)
 find_package(cmake_modules REQUIRED )
 find_package(custom_cmake_modules REQUIRED )
 
