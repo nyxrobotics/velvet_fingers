@@ -60,7 +60,7 @@ class ExpConsoleNode {
 	    nh_.param<std::string>("object_frame_name",object_frame_name,"object_frame");
 	    nh_.param<std::string>("outfile_name",outfile_name,"results.txt");
 
-	    result_pub = ros::NodeHandle().advertise<experiment_console::ExperimentResult>("exp_results", 1);
+	    result_pub = n_.advertise<experiment_console::ExperimentResult>("exp_results", 1);
 	    js_sub = n_.subscribe("joint_states", 1, &ExpConsoleNode::jsCallback, this);
 	    vs_sub = n_.subscribe("velvet_state", 1, &ExpConsoleNode::vsCallback, this);
 	    ft_sub = n_.subscribe("ft_topic", 1, &ExpConsoleNode::ftCallback, this);
@@ -91,11 +91,14 @@ class ExpConsoleNode {
 	}
 	void run() {
 	    std::cout<<"boost thread starting up...\n";
+	    ROS_WARN("waiting for service...");
+	    ros::service::waitForService("/velvet_node/velvet_grasp");
+
 	    std::ofstream fst (outfile_name.c_str(), std::ofstream::out);
 	    fst <<"# gripper experiments result file. format is:\n";
 	    fst<<"Success(0/1), open_enc, blb, blf, brb, brf, pl, pr, curr_open, curr_blb, curr_blf, curr_brb, curr_brf, ft_blb [fx,fy,fz,tx,ty,tz], ft_blf, ft_brb, ft_brf, tx, ty, tz, roll, pitch, yaw\n";
 	    char c = 'a';
-	    poscall.request.angle = 0;
+	    poscall.request.angle = 0.1;
 	    while (c!='q' && c!='Q') {
 		//call set zero service
 
@@ -119,12 +122,13 @@ class ExpConsoleNode {
 		//get the transform of the gripper palm relative to the object frame
 		tf::StampedTransform palm2obj_tf;
 		try {
-		    tl.waitForTransform(gripper_frame_name, object_frame_name, ros::Time(0), ros::Duration(1.0) );
-		    tl.lookupTransform(gripper_frame_name, object_frame_name, ros::Time(0), palm2obj_tf);
+		    tl.waitForTransform(object_frame_name, gripper_frame_name, ros::Time(0), ros::Duration(1.0) );
+		    tl.lookupTransform(object_frame_name, gripper_frame_name, ros::Time(0), palm2obj_tf);
 		} catch (tf::TransformException ex) {
 		    ROS_ERROR("%s",ex.what());
 		    return;
 		}
+		data_mutex.lock();
 		Eigen::Affine3d palm2obj_eig;
 		tf::transformTFToEigen(palm2obj_tf, palm2obj_eig);
 		tf::transformEigenToMsg(palm2obj_eig, result.t_world);
@@ -132,16 +136,26 @@ class ExpConsoleNode {
 		std::cout<<"grasp service done. Was it succesful? (y=yes, n=no)\n";
 		//wait for success 
 		std::cin>>c;
-		data_mutex.lock();
+		bool meaningful = true;
 		switch(c) {
 		    case 'y':
 			result.success = true;
 			break;
+		    case 'n':
+			result.success = false;
+			meaningful = true;
+			break;
 		    default:
 			result.success = false;
+			meaningful = false;
 			break;
 		};
-		fst<<(int)result.success<<","<<result.velvet_state.oc.val<<","<<result.velvet_state.blb.val<<","<<result.velvet_state.blf.val<<","<<
+		if(!meaningful) {
+		    fst<<"3";
+		} else {
+		fst<<(int)result.success;
+		}
+		fst<<","<<result.velvet_state.oc.val<<","<<result.velvet_state.blb.val<<","<<result.velvet_state.blf.val<<","<<
 		    result.velvet_state.brb.val<<","<<result.velvet_state.brf.val<<","<<result.velvet_state.pl.val<<","<<result.velvet_state.pr.val<<","<<
 		    result.velvet_state.c_oc.val<<","<<result.velvet_state.c_blb.val<<","<<result.velvet_state.c_blf.val<<","<<result.velvet_state.c_brb.val<<","<<
 		    result.velvet_state.c_brf.val<<",";

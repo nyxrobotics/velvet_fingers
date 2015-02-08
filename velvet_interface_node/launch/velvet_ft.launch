@@ -7,6 +7,6 @@
   </node>
   <node name="win_ifce" pkg="rosserial_server" type="socket_node"/>
   <node name="velvet_node" pkg="velvet_interface_node" type="velvet_node" launch-prefix="xterm -e ">
-    <param name="use_ft" value="true"/>
+    <param name="use_ft" value="false"/>
   </node>
 </launch>

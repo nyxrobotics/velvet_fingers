@@ -283,7 +283,8 @@ bool VelvetGripperNode::request_pos(velvet_interface_node::VelvetToPos::Request 
     } else {
 	poscall.request.time = 3000; //3 sec
     }
-    return set_pos_.call(poscall);
+    set_pos_.call(poscall);
+    return true;
 }
 
 bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request  &req,
@@ -314,15 +315,24 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
     velvet_msgs::SetCur curcall;
     velvet_msgs::SetPos poscall;	
     curcall.request.id = 0;
-    curcall.request.curr = current_threshold_contact;
-    curcall.request.time = 2000; //2 seconds
+    curcall.request.curr = 5;
+    curcall.request.time = 1000; //2 seconds
     if(!set_cur_.call(curcall)) {
 	std::cerr<<"Could not call set_cur service\n";
 	this->finishGrasp(res, initial_angle, success_grasp);
 	return true;
     }
     //sleep for ramp to start
-    sleep(1);
+    usleep(1500000);
+    curcall.request.id = 0;
+    curcall.request.curr = current_threshold_contact;
+    curcall.request.time = 500; //2 seconds
+    if(!set_cur_.call(curcall)) {
+	std::cerr<<"Could not call set_cur service\n";
+	this->finishGrasp(res, initial_angle, success_grasp);
+	return true;
+    }
+    usleep(800000);
 
     float my_angle_last, belt1_pos_last, belt2_pos_last;
     float d_angle, d_belt1, d_belt2, d_finger1, d_finger2;
