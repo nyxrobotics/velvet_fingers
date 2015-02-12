@@ -48,6 +48,8 @@ find_package(catkin REQUIRED COMPONENTS
    EncoderState.msg
    CurrentState.msg
    GripperState.msg
+   VNodeState.msg
+   VNodeTarget.msg
  )
 
 ## Generate services in the 'srv' folder

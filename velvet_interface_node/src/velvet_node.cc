@@ -9,6 +9,9 @@
 #include <velvet_msgs/SetCur.h>
 #include <velvet_msgs/SetPID.h>
 #include <ft_msgs/FTArray.h>
+#include <velvet_msgs/VNodeState.h>
+#include <velvet_msgs/VNodeTarget.h>
+
 
 #include <boost/thread/mutex.hpp>
 #include <qhull/qhull.h>
@@ -30,9 +33,11 @@ private:
   ros::NodeHandle nh_, n_;
 
   ros::Publisher gripper_status_publisher_;
+  ros::Publisher vnode_state_pub_;
   ros::Subscriber arduino_state_sub_;
   ros::Subscriber force_torque_sub_;
-  
+  ros::Subscriber vnode_target_sub_;
+
   ros::ServiceServer request_grasp_;
   ros::ServiceServer request_pos_;
   
@@ -42,6 +47,8 @@ private:
 
   std::string velvet_state_topic, ft_sensors_topic;
   std::string set_pos_name, set_cur_name, set_pid_name;
+  std::string vnode_state_topic, vnode_target_topic;
+
   //state variables
   boost::mutex data_mutex;
   float my_angle, finger1_angle, finger2_angle, belt1_pos, belt2_pos, belt3_pos, belt4_pos, 
@@ -52,10 +59,18 @@ private:
   double closing_speed;
   double min_ramp_time;
   double contact_force_t;
+  double my_vel;
+  double prev_oangle;
+  double t_prev_read,t_prev_send;
+  double target_vel;
+  bool doVelocityControl;
+  bool bHWIfce;
+  double setpoint;
 
   //reconfigure stuff
   dynamic_reconfigure::Server<velvet_interface_node::velvet_nodeConfig> dr_srv;
   dynamic_reconfigure::Server<velvet_interface_node::velvet_nodeConfig>::CallbackType cb;
+  ros::Timer heartbeat_setpos_;
 
   bool request_grasp(velvet_interface_node::SmartGrasp::Request  &req,
              velvet_interface_node::SmartGrasp::Response &res );
@@ -71,6 +86,31 @@ private:
   bool isForceClosure();
   void finishGrasp(velvet_interface_node::SmartGrasp::Response &res, float init_angle, bool success);
 
+  void setVel( const velvet_msgs::VNodeTarget& msg);
+  void sendSetPosForVelControl(const ros::TimerEvent& event) {
+   
+      if(doVelocityControl) {
+	//update setpoint for position controller
+	  double tnow = getDoubleTime();
+	  double dt = tnow - t_prev_send;
+	  t_prev_send=tnow;
+
+	  double kp = 0;
+	  double eps = 0.05;
+	  setpoint = my_angle + dt*target_vel + kp*(target_vel-my_vel);
+	  if(setpoint < eps) setpoint = 0;
+	  if(setpoint > M_PI/2-eps) setpoint = M_PI/2-eps;
+	  velvet_msgs::SetPos poscall;
+	  poscall.request.id = 0;
+	  data_mutex.lock();
+	  poscall.request.pos = setpoint * 1000.; //mRad
+	  data_mutex.unlock();
+	  poscall.request.time = dt*1000; // who knows?
+
+	  set_pos_.call(poscall);
+      }
+
+  }
   double getDoubleTime() {
       struct timeval time;
       gettimeofday(&time,NULL);
@@ -102,6 +142,7 @@ VelvetGripperNode::VelvetGripperNode()
 
   //read in parameters
   nh_.param("use_ft", use_ft, false);
+  nh_.param("bHWIfce", bHWIfce, false);
   nh_.param("limit_closing_speed", limit_closing_speed, false);
   nh_.param("closing_speed_rad_s", closing_speed, 0.5);
   nh_.param("min_ramp_time_ms", min_ramp_time, 1000.);
@@ -130,23 +171,53 @@ VelvetGripperNode::VelvetGripperNode()
   set_cur_ = n_.serviceClient<velvet_msgs::SetCur>(set_cur_name);
   set_pid_ = n_.serviceClient<velvet_msgs::SetPID>(set_pid_name);
 
+  if(bHWIfce) {
+      nh_.param<std::string>("vnode_state_topic", vnode_state_topic, "vnode_state");
+      nh_.param<std::string>("vnode_target_topic",vnode_target_topic,"vnode_target");
+      vnode_state_pub_ = ros::NodeHandle().advertise<velvet_msgs::VNodeState>(vnode_state_topic, 10); 
+      vnode_target_sub_ = n_.subscribe(vnode_target_topic, 1, &VelvetGripperNode::setVel, this);
+  }
+  doVelocityControl = false;
+  target_vel =0;
+  t_prev_read = getDoubleTime();
+  t_prev_send = getDoubleTime();
+  heartbeat_setpos_ = nh_.createTimer(ros::Duration(2), &VelvetGripperNode::sendSetPosForVelControl, this);
+
 }
 
 VelvetGripperNode::~VelvetGripperNode()
 {
 }
 
+
+void VelvetGripperNode::setVel( const velvet_msgs::VNodeTarget& msg) {
+    //target vel is in msg->target_vel
+    data_mutex.lock();
+    target_vel = msg.target_vel;
+    doVelocityControl = true;
+    data_mutex.unlock();
+}
+
 void VelvetGripperNode::publishStatus() {
 
-  sensor_msgs::JointState js;
-  js.header.stamp = ros::Time::now();
-  js.name.push_back("velvet_fingers_joint_1");
-  js.position.push_back(my_angle);
-  js.name.push_back("velvet_fingers_joint_2");
-  js.position.push_back(my_angle);
-  
-  gripper_status_publisher_.publish(js);
-  return;
+    if(!bHWIfce) {
+	sensor_msgs::JointState js;
+	js.header.stamp = ros::Time::now();
+	js.name.push_back("velvet_fingers_joint_1");
+	js.position.push_back(my_angle);
+	js.name.push_back("velvet_fingers_joint_2");
+	js.position.push_back(my_angle);
+
+	gripper_status_publisher_.publish(js);
+    } else {
+	velvet_msgs::VNodeState msg;
+	msg.joint_pos = my_angle;
+	msg.joint_vel = my_vel;
+	msg.joint_eff = open_curr;
+	vnode_state_pub_.publish(msg);
+
+    }
+    return;
 }
 
   
@@ -167,9 +238,16 @@ void VelvetGripperNode::stateCallback( const velvet_msgs::GripperStatePtr& msg) 
     belt3_curr = msg->c_blf.val ;
     belt4_curr = msg->c_brf.val;
 
+    double tnow = getDoubleTime();
+    double dt = tnow - t_prev_read;
+    my_vel = (my_angle - prev_oangle) / dt;
+    prev_oangle = my_angle;
+    t_prev_read=tnow;
+    
     //publish joint states
     publishStatus();
     data_mutex.unlock();
+
 }
 
 void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
