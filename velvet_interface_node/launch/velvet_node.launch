@@ -7,5 +7,6 @@
   </node>
   <node name="velvet_node" pkg="velvet_interface_node" type="velvet_node" launch-prefix="xterm -e">
     <param name="use_ft" value="false"/>
+    <remap from="/joint_states" to="/apple/joint_states" />
   </node>
 </launch>
