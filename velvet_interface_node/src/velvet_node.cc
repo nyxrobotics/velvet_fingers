@@ -53,7 +53,11 @@ private:
   boost::mutex data_mutex;
   float my_angle, finger1_angle, finger2_angle, belt1_pos, belt2_pos, belt3_pos, belt4_pos, 
 	open_curr, belt1_curr, belt2_curr, belt3_curr, belt4_curr;
-  float ftb1[6], ftb2[6], ftb3[6], ftb4[6];
+  Eigen::Matrix<double,6,1> ftb1, ftb2, ftb3, ftb4;
+  Eigen::Matrix<double,6,6> Wlc, Wrc;
+  Eigen::Vector3d cpb1, cpb2, cpb3, cpb4; //contact point locations
+  Eigen::Vector3d fnb1, fnb2, fnb3, fnb4; //normalized forces on belts
+  double tb1, tb2, tb3, tb4; //torque in local frame
   bool use_ft;
   bool limit_closing_speed;
   double closing_speed;
@@ -131,6 +135,7 @@ private:
 	  }
       }
   } 
+  bool calculateFT(Eigen::Matrix<double,6,1> &orig, Eigen::Vector3d &contact_point, Eigen::Vector3d &contact_force, double &t_norm);
 };
 
 
@@ -183,6 +188,26 @@ VelvetGripperNode::VelvetGripperNode()
   t_prev_send = getDoubleTime();
   heartbeat_setpos_ = nh_.createTimer(ros::Duration(2), &VelvetGripperNode::sendSetPosForVelControl, this);
 
+  /////global matricse for FT calculation
+  double lx=0.037,ly=0.0035,lz=0.019;
+  Wlc.setIdentity();
+  Wlc(4,0) = -lz;
+  Wlc(5,0) = ly;
+  Wlc(3,1) = lz;
+  Wlc(5,1) = -lx;
+  Wlc(3,2) = -ly;
+  Wlc(4,2) = lx;
+
+  double rx=0,ry=0,rz=0;
+  Wrc.setIdentity();
+  Wrc(4,0) = -rz;
+  Wrc(5,0) = ry;
+  Wrc(3,1) = rz;
+  Wrc(5,1) = -rx;
+  Wrc(3,2) = -ry;
+  Wrc(4,2) = rx;
+
+  std::cerr<<"Wlc = "<<Wlc<<std::endl;
 }
 
 VelvetGripperNode::~VelvetGripperNode()
@@ -254,35 +279,95 @@ void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
     data_mutex.lock();
     //update ft sensor states
     for(int i=0; i<msg->sensor_data.size(); ++i) {
-	float *targ=NULL;
+	Eigen::Matrix<double,6,1> targ;
+	targ(0,0) = msg->sensor_data[i].fx;
+	targ(1,0) = msg->sensor_data[i].fy;
+	targ(2,0) = msg->sensor_data[i].fz;
+	targ(3,0) = msg->sensor_data[i].tx;
+	targ(4,0) = msg->sensor_data[i].ty;
+	targ(5,0) = msg->sensor_data[i].tz;
 	switch(msg->sensor_data[i].id) {
 	    case 0:
-		targ = ftb1;
+		ftb1=targ;
 		break;
 	    case 1:
-		targ = ftb2;
+		ftb2=targ;
 		break;
 	    case 2:
-		targ = ftb3;
+		ftb3=targ;
 		break;
 	    case 3:
-		targ = ftb4;
+		ftb4=targ;
 		break;
 	    default:
 		break;
 	};
-	if(targ!=NULL) {
-	    targ[0] = msg->sensor_data[i].fx;
-	    targ[1] = msg->sensor_data[i].fy;
-	    targ[2] = msg->sensor_data[i].fz;
-	    targ[3] = msg->sensor_data[i].tx;
-	    targ[4] = msg->sensor_data[i].ty;
-	    targ[5] = msg->sensor_data[i].tz;
-	}
     }
     data_mutex.unlock();
+    
+    //compute contact points for each module
+    std::cerr<<"b1\n";
+/*    calculateFT(ftb1,cpb1,fnb1,tb1);    
+    std::cerr<<"b2\n";
+    calculateFT(ftb2,cpb2,fnb2,tb2);    
+    std::cerr<<"b3\n";
+    calculateFT(ftb3,cpb3,fnb3,tb3);    
+    std::cerr<<"b4\n";
+    calculateFT(ftb4,cpb4,fnb4,tb4);    
+*/
 }
 
+bool VelvetGripperNode::calculateFT(Eigen::Matrix<double,6,1> &orig, Eigen::Vector3d &contact_point, Eigen::Vector3d &contact_force, double &t_norm) {
+    //left cylinder
+    bool left_valid = true;
+    double Rleft = 0.028;
+    Eigen::Matrix<double,6,1> wlc;
+    wlc = Wlc*orig;
+
+    std::cerr<<"w: "<<orig.transpose()<<"\n Wlc: "<<Wlc<<"\nw transformed: "<<wlc.transpose()<<std::endl;
+    contact_force(0) = wlc(1);
+    contact_force(1) = wlc(4) / Rleft;
+    contact_force(2) = wlc(0)*wlc(0)+wlc(2)*wlc(2) - contact_force(1)*contact_force(1);
+
+    if(contact_force(2) >= 0) {
+	contact_force(2) = sqrt(contact_force(2));
+    } else {
+	std::cerr<<"contact force z is negative\n";
+	left_valid = false;
+    }
+    left_valid &= (contact_force(0) >= 0 && contact_force(1) >= 0);
+
+    std::cerr<<"contact force: "<<contact_force.transpose()<<std::endl;
+    double omega=0;
+    double eps = 1e-4;
+    double y;
+    if(left_valid) {
+	double omega_1, omega_2;
+	omega_1 = 2*atan2(-contact_force(2) + wlc(2), wlc(0) + contact_force(1));
+	omega_2 = 2*atan2(-contact_force(2) - wlc(2), wlc(0) + contact_force(1));
+	std::cerr<<"omega1 "<<omega_1<<" omega2 "<<omega_2<<std::endl;
+	if( fabs(wlc(2) + (contact_force(1)*sin(omega_1) + contact_force(2)*cos(omega_1))) < eps) {
+	    omega = omega_1;
+	} else {
+	    omega = omega_2;
+	}
+	std::cerr<<"omega "<<omega<<std::endl;
+    } 
+    left_valid &= ((omega<M_PI/2 && omega >-M_PI/2) || omega > 3*M_PI/2);
+
+    if(left_valid) {
+	t_norm = (wlc(2)*(wlc(5)+wlc(3)) + wlc(1)*Rleft*(wlc(0)*cos(omega) - wlc(2)*sin(omega))) / (wlc(2)*sin(omega)+wlc(0)*cos(omega));
+	y = (sin(omega)*t_norm - wlc(1)*Rleft*cos(omega) - wlc(3))/ (-wlc(2));
+
+	contact_point(0) = sin(omega)*Rleft + Wlc(4,2);
+	contact_point(1) = y + Wlc(5,0);
+	contact_point(2) = cos(omega)*Rleft + Wlc(3,1);
+
+	std::cerr<<"t_norm: "<<t_norm<<"\n contact point: "<<contact_point.transpose()<<std::endl;
+	return true;
+    }
+
+}
 //checks if a grasp is stable
 bool VelvetGripperNode::isValidGrasp(float open_angle, float open_angle_thresh, float p1, float p2, float min_phalange_delta, bool check_phalanges) {
     if(!use_ft) {
@@ -448,24 +533,24 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	//monitor the force vectors on belts 3 and 4
 	Eigen::Vector3f fb3, fb4;
 	data_mutex.lock();
-	fb3(0)=ftb3[0];
-	fb3(1)=ftb3[1];
-	fb3(2)=ftb3[2];
-	fb4(0)=ftb4[0];
-	fb4(1)=ftb4[1];
-	fb4(2)=ftb4[2];
+	fb3(0)=ftb3(0,0);
+	fb3(1)=ftb3(1,0);
+	fb3(2)=ftb3(2,0);
+	fb4(0)=ftb4(0,0);
+	fb4(1)=ftb4(1,0);
+	fb4(2)=ftb4(2,0);
 	my_angle_last = my_angle;
 	data_mutex.unlock();
 	//wait for force magnitude > thresh 
 	while(fb3.norm() < contact_force_t || fb4.norm() < contact_force_t) {
 
 	    data_mutex.lock();
-	    fb3(0)=ftb3[0];
-	    fb3(1)=ftb3[1];
-	    fb3(2)=ftb3[2];
-	    fb4(0)=ftb4[0];
-	    fb4(1)=ftb4[1];
-	    fb4(2)=ftb4[2];
+	    fb3(0)=ftb3(0,0);
+	    fb3(1)=ftb3(1,0);
+	    fb3(2)=ftb3(2,0);
+	    fb4(0)=ftb4(0,0);
+	    fb4(1)=ftb4(1,0);
+	    fb4(2)=ftb4(2,0);
 	    my_angle_last = my_angle;
 	    data_mutex.unlock();
 
