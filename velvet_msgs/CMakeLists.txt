@@ -50,6 +50,7 @@ find_package(catkin REQUIRED COMPONENTS
    GripperState.msg
    VNodeState.msg
    VNodeTarget.msg
+   ContactPoint.msg
  )
 
 ## Generate services in the 'srv' folder

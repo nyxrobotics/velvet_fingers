@@ -8,6 +8,7 @@
 #include <velvet_msgs/SetPos.h>
 #include <velvet_msgs/SetCur.h>
 #include <velvet_msgs/SetPID.h>
+#include <velvet_msgs/ContactPoint.h>
 #include <ft_msgs/FTArray.h>
 #include <velvet_msgs/VNodeState.h>
 #include <velvet_msgs/VNodeTarget.h>
@@ -33,6 +34,7 @@ private:
   ros::NodeHandle nh_, n_;
 
   ros::Publisher gripper_status_publisher_;
+  ros::Publisher cp_pub_;
   ros::Publisher vnode_state_pub_;
   ros::Subscriber arduino_state_sub_;
   ros::Subscriber force_torque_sub_;
@@ -167,6 +169,7 @@ VelvetGripperNode::VelvetGripperNode()
   request_pos_ = nh_.advertiseService("gripper_pos", &VelvetGripperNode::request_pos, this);;
   
   gripper_status_publisher_ = ros::NodeHandle().advertise<sensor_msgs::JointState>("joint_states", 10); 
+  cp_pub_ = ros::NodeHandle().advertise<velvet_msgs::ContactPoint>("contact_points", 10); 
   arduino_state_sub_ = n_.subscribe(velvet_state_topic, 10, &VelvetGripperNode::stateCallback, this);
   if(use_ft) {
       force_torque_sub_ = n_.subscribe(ft_sensors_topic, 10, &VelvetGripperNode::ftCallback, this);
@@ -288,6 +291,7 @@ void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
 	targ(5,0) = msg->sensor_data[i].tz;
 	switch(msg->sensor_data[i].id) {
 	    case 0:
+		calculateFT(ftb1,cpb1,fnb1,tb1);    
 		ftb1=targ;
 		break;
 	    case 1:
@@ -306,9 +310,9 @@ void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
     data_mutex.unlock();
     
     //compute contact points for each module
-    std::cerr<<"b1\n";
-/*    calculateFT(ftb1,cpb1,fnb1,tb1);    
-    std::cerr<<"b2\n";
+    //std::cerr<<"b1\n";
+//    calculateFT(ftb1,cpb1,fnb1,tb1);    
+/*    std::cerr<<"b2\n";
     calculateFT(ftb2,cpb2,fnb2,tb2);    
     std::cerr<<"b3\n";
     calculateFT(ftb3,cpb3,fnb3,tb3);    
@@ -324,34 +328,38 @@ bool VelvetGripperNode::calculateFT(Eigen::Matrix<double,6,1> &orig, Eigen::Vect
     Eigen::Matrix<double,6,1> wlc;
     wlc = Wlc*orig;
 
-    std::cerr<<"w: "<<orig.transpose()<<"\n Wlc: "<<Wlc<<"\nw transformed: "<<wlc.transpose()<<std::endl;
-    contact_force(0) = wlc(1);
-    contact_force(1) = wlc(4) / Rleft;
+    orig(0) = -orig(0);
+    orig(1) = -orig(1);
+    orig(3) = -orig(3);
+    orig(4) = -orig(4);
+    //std::cerr<<"w: "<<orig.transpose()<<"\n Wlc: "<<Wlc<<"\nw transformed: "<<wlc.transpose()<<std::endl;
+    contact_force(0) = wlc(4) / Rleft;
+    contact_force(1) = wlc(1);
     contact_force(2) = wlc(0)*wlc(0)+wlc(2)*wlc(2) - contact_force(1)*contact_force(1);
 
-    if(contact_force(2) >= 0) {
+    if(contact_force(2) > 0.0001) {
 	contact_force(2) = sqrt(contact_force(2));
+	std::cerr<<"contact force: "<<contact_force.transpose()<<std::endl;
     } else {
-	std::cerr<<"contact force z is negative\n";
+	//std::cerr<<"contact force z zero\n";
 	left_valid = false;
     }
-    left_valid &= (contact_force(0) >= 0 && contact_force(1) >= 0);
+    //left_valid &= (contact_force(0) >= 0 && contact_force(1) >= 0);
 
-    std::cerr<<"contact force: "<<contact_force.transpose()<<std::endl;
     double omega=0;
-    double eps = 1e-4;
+    double eps = 1e-2;
     double y;
     if(left_valid) {
 	double omega_1, omega_2;
-	omega_1 = 2*atan2(-contact_force(2) + wlc(2), wlc(0) + contact_force(1));
-	omega_2 = 2*atan2(-contact_force(2) - wlc(2), wlc(0) + contact_force(1));
-	std::cerr<<"omega1 "<<omega_1<<" omega2 "<<omega_2<<std::endl;
-	if( fabs(wlc(2) + (contact_force(1)*sin(omega_1) + contact_force(2)*cos(omega_1))) < eps) {
+	omega_1 = 2*atan2(-contact_force(2) + wlc(2), wlc(0) + contact_force(0));
+	omega_2 = 2*atan2(-contact_force(2) - wlc(2), wlc(0) + contact_force(0));
+	if( fabs(wlc(2) + (contact_force(0)*sin(omega_1) + contact_force(2)*cos(omega_1))) < fabs(wlc(2) + (contact_force(0)*sin(omega_2) + contact_force(2)*cos(omega_2))) ) {
 	    omega = omega_1;
-	} else {
+	} else { 
 	    omega = omega_2;
 	}
-	std::cerr<<"omega "<<omega<<std::endl;
+	if(omega < -M_PI) omega +=2*M_PI;
+	if(omega > M_PI) omega -=2*M_PI;
     } 
     left_valid &= ((omega<M_PI/2 && omega >-M_PI/2) || omega > 3*M_PI/2);
 
@@ -363,7 +371,12 @@ bool VelvetGripperNode::calculateFT(Eigen::Matrix<double,6,1> &orig, Eigen::Vect
 	contact_point(1) = y + Wlc(5,0);
 	contact_point(2) = cos(omega)*Rleft + Wlc(3,1);
 
-	std::cerr<<"t_norm: "<<t_norm<<"\n contact point: "<<contact_point.transpose()<<std::endl;
+	velvet_msgs::ContactPoint cp;
+	cp.x = contact_point(0);
+	cp.y = contact_point(1);
+	cp.z = contact_point(2);
+	cp_pub_.publish(cp);
+	std::cerr<<"contact point "<<contact_point.transpose()<<std::endl;
 	return true;
     }
 
