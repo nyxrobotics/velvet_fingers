@@ -9,6 +9,7 @@
 #include <velvet_msgs/SetCur.h>
 #include <velvet_msgs/SetPID.h>
 #include <velvet_msgs/ContactPoint.h>
+#include <velvet_msgs/ContactPointArray.h>
 #include <ft_msgs/FTArray.h>
 #include <velvet_msgs/VNodeState.h>
 #include <velvet_msgs/VNodeTarget.h>
@@ -169,7 +170,7 @@ VelvetGripperNode::VelvetGripperNode()
   request_pos_ = nh_.advertiseService("gripper_pos", &VelvetGripperNode::request_pos, this);;
   
   gripper_status_publisher_ = ros::NodeHandle().advertise<sensor_msgs::JointState>("joint_states", 10); 
-  cp_pub_ = ros::NodeHandle().advertise<velvet_msgs::ContactPoint>("contact_points", 10); 
+  cp_pub_ = ros::NodeHandle().advertise<velvet_msgs::ContactPointArray>("contact_points", 10); 
   arduino_state_sub_ = n_.subscribe(velvet_state_topic, 10, &VelvetGripperNode::stateCallback, this);
   if(use_ft) {
       force_torque_sub_ = n_.subscribe(ft_sensors_topic, 10, &VelvetGripperNode::ftCallback, this);
@@ -288,6 +289,9 @@ void VelvetGripperNode::stateCallback( const velvet_msgs::GripperStatePtr& msg) 
 }
 
 void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
+    velvet_msgs::ContactPoint cp;
+    velvet_msgs::ContactPointArray cps;
+    Eigen::Vector3d cpt;
     data_mutex.lock();
     //update ft sensor states
     for(int i=0; i<msg->sensor_data.size(); ++i) {
@@ -298,27 +302,49 @@ void VelvetGripperNode::ftCallback( const ft_msgs::FTArrayPtr& msg) {
 	targ(3,0) = msg->sensor_data[i].tx;
 	targ(4,0) = msg->sensor_data[i].ty;
 	targ(5,0) = msg->sensor_data[i].tz;
+	cp.id = msg->sensor_data[i].id;    
 	switch(msg->sensor_data[i].id) {
 	    case 0:
 		ftb1=targ;
-		calculateFT(ftb1,cpb1,fnb1,tb1);    
+		cpb1.setZero();
+		cp.valid = (calculateFT(ftb1,cpb1,fnb1,tb1));
+		cp.x = cpb1(0);
+		cp.y = cpb1(1);
+		cp.z = cpb1(2);
+		cps.points.push_back(cp);
 		break;
 	    case 1:
 		ftb2=targ;
-		calculateFT(ftb2,cpb2,fnb2,tb2);    
+		cpb2.setZero();
+		cp.valid = calculateFT(ftb2,cpb2,fnb2,tb2);
+		cp.x = cpb2(0);
+		cp.y = cpb2(1);
+		cp.z = cpb2(2);
+		cps.points.push_back(cp);
 		break;
 	    case 2:
 		ftb3=targ;
-		calculateFT(ftb3,cpb3,fnb3,tb3);    
+		cpb3.setZero();
+		cp.valid = calculateFT(ftb3,cpb3,fnb3,tb3);
+		cp.x = cpb3(0);
+		cp.y = cpb3(1);
+		cp.z = cpb3(2);
+		cps.points.push_back(cp);
 		break;
 	    case 3:
 		ftb4=targ;
-		calculateFT(ftb4,cpb4,fnb4,tb4);    
+		cpb4.setZero();
+		cp.valid = (calculateFT(ftb4,cpb4,fnb4,tb4));
+		cp.x = cpb4(0);
+		cp.y = cpb4(1);
+		cp.z = cpb4(2);
+		cps.points.push_back(cp);
 		break;
 	    default:
 		break;
 	};
     }
+    cp_pub_.publish(cps);
     data_mutex.unlock();
 }
 
@@ -339,11 +365,6 @@ bool VelvetGripperNode::calculateFT(Eigen::Matrix<double,6,1> &orig, Eigen::Vect
     contact_point(2) = 0.033; 
 
     t_norm = w(5) - w(1)*contact_point(0) + w(0)*contact_point(1);
-    velvet_msgs::ContactPoint cp;
-    cp.x = contact_point(0);
-    cp.y = contact_point(1);
-    cp.z = contact_point(2);
-    cp_pub_.publish(cp);
 
     return true;
 #if 0
