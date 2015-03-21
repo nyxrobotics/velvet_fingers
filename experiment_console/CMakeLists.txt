@@ -59,11 +59,10 @@ find_package(Eigen REQUIRED)
  )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+ add_service_files(
+   FILES
+   SetOutfile.srv
+ )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -112,6 +111,7 @@ include_directories(
 
 ## Declare a cpp executable
 add_executable(experiment_console_node src/console.cc)
+add_executable(ft_dump_node src/ft_dumper.cc)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -119,6 +119,9 @@ add_dependencies(experiment_console_node experiment_console_generate_messages_cp
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(experiment_console_node
+   ${catkin_LIBRARIES} ${Boost_LIBRARIES}
+ )
+target_link_libraries(ft_dump_node
    ${catkin_LIBRARIES} ${Boost_LIBRARIES}
  )
 
