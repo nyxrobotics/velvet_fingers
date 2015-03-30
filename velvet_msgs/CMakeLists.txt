@@ -51,6 +51,7 @@ find_package(catkin REQUIRED COMPONENTS
    VNodeState.msg
    VNodeTarget.msg
    ContactPoint.msg
+   ContactPointArray.msg
  )
 
 ## Generate services in the 'srv' folder
