@@ -25,5 +25,10 @@
     <arg name="disparity_processing"            value="false" />
     <arg name="disparity_registered_processing" value="false" />
   </include>
+  
+  <node pkg="rostopic" type="rostopic" name="camera_monitor"
+        args="hz /camera/depth/camera_info" launch-prefix="xterm -e"/>  
+
+   
 </launch>
 
