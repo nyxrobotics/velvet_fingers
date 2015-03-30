@@ -6,6 +6,7 @@
 #include <velvet_interface_node/VelvetToPos.h>
 #include <velvet_msgs/GripperState.h>
 #include <velvet_msgs/SetPos.h>
+#include <velvet_msgs/SetVel.h>
 #include <velvet_msgs/SetCur.h>
 #include <velvet_msgs/SetPID.h>
 #include <velvet_msgs/ContactPoint.h>
@@ -47,10 +48,11 @@ private:
   
   ros::ServiceClient set_pid_;
   ros::ServiceClient set_pos_;
+  ros::ServiceClient set_vel_;
   ros::ServiceClient set_cur_;
 
   std::string velvet_state_topic, ft_sensors_topic;
-  std::string set_pos_name, set_cur_name, set_pid_name;
+  std::string set_pos_name, set_vel_name, set_cur_name, set_pid_name;
   std::string vnode_state_topic, vnode_target_topic;
 
   //state variables
@@ -163,6 +165,7 @@ VelvetGripperNode::VelvetGripperNode()
   nh_.param<std::string>("velvet_topic_name", velvet_state_topic,"/velvet_state");
   nh_.param<std::string>("ft_topic_name", ft_sensors_topic,"/ft_topic");
   nh_.param<std::string>("set_pos_name", set_pos_name,"/set_pos");
+  nh_.param<std::string>("set_vel_name", set_vel_name,"/set_vel");
   nh_.param<std::string>("set_cur_name", set_cur_name,"/set_cur");
   nh_.param<std::string>("set_pid_name", set_pid_name,"/set_pid");
 
@@ -182,6 +185,7 @@ VelvetGripperNode::VelvetGripperNode()
   }
   
   set_pos_ = n_.serviceClient<velvet_msgs::SetPos>(set_pos_name);
+  set_vel_ = n_.serviceClient<velvet_msgs::SetVel>(set_vel_name);
   set_cur_ = n_.serviceClient<velvet_msgs::SetCur>(set_cur_name);
   set_pid_ = n_.serviceClient<velvet_msgs::SetPID>(set_pid_name);
 
@@ -525,14 +529,14 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
     float MIN_PHALANGE_DELTA = req.phalange_delta_rad;
     float MAX_BELT_TRAVEL = req.max_belt_travel_mm; 
     bool CHECK_PHALANGES = req.check_phalanges;
-
+    float BELT_VEL = 60; //mm/sec
     std::cerr<<"starting smart grasp, thresholds are "<<current_threshold_contact<<" "<<current_threshold_final<<std::endl;
 
     bool success_grasp = false;
     double ZERO_MOVEMENT_BELT = 0.01;
     int N_ZERO_BELTS = 10;
     int N_ZERO_OPEN = 5;
-    double T_MAX_SEC = 25;
+    double T_MAX_SEC = 15;
     float T_MIN_BELTS = 3000; //3 secs 
     double t_start = getDoubleTime();
     double tnow = 0, t_start_belts;
@@ -543,12 +547,13 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 
     velvet_msgs::SetCur curcall;
     velvet_msgs::SetPos poscall;	
+    velvet_msgs::SetVel velcall;	
 #ifdef BE_HACKED
-    poscall.request.id = 1;
-    poscall.request.pos = 2*MAX_BELT_TRAVEL;
-    poscall.request.time = 2*T_MIN_BELTS; // 1/5 of remaining time
-    ROS_INFO("belts should move %f mm in %f sec", poscall.request.pos, poscall.request.time);
-    if(!set_pos_.call(poscall)) {
+    velcall.request.id = 1;
+    velcall.request.vel = BELT_VEL;
+    velcall.request.time = 100; // 1/5 of remaining time
+    ROS_INFO("belts should move at %f mm /sec", velcall.request.vel);
+    if(!set_vel_.call(velcall)) {
 	    std::cerr<<"couldn't call pos service\n";
 	    this->finishGrasp(res, initial_angle, false);
 	    return true;
@@ -576,15 +581,15 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	this->finishGrasp(res, initial_angle, success_grasp);
 	return true;
     }
-    usleep(800000);
+    usleep(500000);
     float my_angle_last, belt1_pos_last, belt2_pos_last;
     float d_angle, d_belt1, d_belt2, d_finger1, d_finger2;
     int n_zero_belt1=0, n_zero_belt2=0, n_zero_open=0; 
     
     data_mutex.lock();
     my_angle_last = my_angle;
-    belt1_pos_last = belt1_pos;
-    belt2_pos_last = belt2_pos;
+    belt1_pos_last = belt3_pos;
+    belt2_pos_last = belt4_pos;
     data_mutex.unlock();
    
     if(!use_ft) {
@@ -652,37 +657,27 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
     if(my_angle_last < ANGLE_CLOSED) {
 	std::cerr<<"CONTACT!!\n Switch on belts!\n";
 #ifdef BE_HACKED    
-	curcall.request.id = 0;
-	curcall.request.curr = current_threshold_contact+curr_offset;
-	curcall.request.time = 500; //2 seconds
-	if(!set_cur_.call(curcall)) {
-		std::cerr<<"Could not call set_cur service\n";
-		this->finishGrasp(res, initial_angle, success_grasp);
-		return true;
-	}
-	usleep(800000);
 	if(my_angle_last < one_beer) {
-		t_start_belts = getDoubleTime();
-		poscall.request.id = 2;
-		poscall.request.pos = 2*MAX_BELT_TRAVEL/3;
-		poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*200; // 1/5 of remaining time
-		if(poscall.request.time < T_MIN_BELTS) poscall.request.time = T_MIN_BELTS; //give it at least T_MIN seconds to avoid crazy jumps
-		ROS_INFO("MOVING OPPOSITE DIRECTION: belts should move %f mm in %f sec", poscall.request.pos, poscall.request.time);
-		if(!set_pos_.call(poscall)) {
-			std::cerr<<"couldn't call pos service\n";
-			this->finishGrasp(res, initial_angle, false);
-			return true;
-		}
-		usleep(poscall.request.time*1000);
+	    t_start_belts = getDoubleTime();
+	    poscall.request.id = 2;
+	    poscall.request.pos = 2*MAX_BELT_TRAVEL/3;
+	    poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*200; // 1/5 of remaining time
+	    if(poscall.request.time < T_MIN_BELTS) poscall.request.time = T_MIN_BELTS; //give it at least T_MIN seconds to avoid crazy jumps
+	    ROS_INFO("MOVING OPPOSITE DIRECTION: belts should move %f mm in %f sec", poscall.request.pos, poscall.request.time);
+	    if(!set_pos_.call(poscall)) {
+		std::cerr<<"couldn't call pos service\n";
+		this->finishGrasp(res, initial_angle, false);
+		return true;
+	    }
+	    usleep(poscall.request.time*1000);
 	}
 #endif
 	t_start_belts = getDoubleTime();
-	poscall.request.id = 1;
-	poscall.request.pos = MAX_BELT_TRAVEL;
-	poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*200; // 1/5 of remaining time
-	if(poscall.request.time < T_MIN_BELTS) poscall.request.time = T_MIN_BELTS; //give it at least T_MIN seconds to avoid crazy jumps
-	ROS_INFO("belts should move %f mm in %f sec", poscall.request.pos, poscall.request.time);
-	if(!set_pos_.call(poscall)) {
+	velcall.request.id = 1;
+	velcall.request.vel = BELT_VEL;
+	velcall.request.time = 100; // 1/5 of remaining time
+	ROS_INFO("belts should move at %f mm /sec", velcall.request.vel);
+	if(!set_vel_.call(velcall)) {
 	    std::cerr<<"couldn't call pos service\n";
 	    this->finishGrasp(res, initial_angle, false);
 	    return true;
@@ -696,10 +691,10 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 
     while(!success_grasp) {  
         data_mutex.lock();	
-	d_belt1 = fabsf(belt1_pos_last - belt1_pos);
-	d_belt2 = fabsf(belt2_pos_last - belt2_pos);
-	belt1_pos_last = belt1_pos;
-	belt2_pos_last = belt2_pos;
+	d_belt1 = fabsf(belt1_pos_last - belt3_pos);
+	d_belt2 = fabsf(belt2_pos_last - belt4_pos);
+	belt1_pos_last = belt3_pos;
+	belt2_pos_last = belt4_pos;
         data_mutex.unlock();	
 
 	n_zero_belt1 = d_belt1 < ZERO_MOVEMENT_BELT ? n_zero_belt1+1 : 0; 
@@ -719,7 +714,7 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	//	all current thresholds achieved	
 
 	tnow = getDoubleTime();
-	if((n_zero_belt1 > N_ZERO_BELTS && n_zero_belt2 > N_ZERO_BELTS) || tnow - t_start > T_MAX_SEC) {
+	if((n_zero_belt1 > N_ZERO_BELTS || n_zero_belt2 > N_ZERO_BELTS) || tnow - t_start > T_MAX_SEC) {
 	    std::cerr<<"BELTS HAVE BLOCKED (or time is up)!\n";
 	    std::cerr<<"ENABLE AND SET CURRENT\n";
 	    
