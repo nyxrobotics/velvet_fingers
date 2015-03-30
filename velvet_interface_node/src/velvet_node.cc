@@ -125,13 +125,15 @@ private:
   void configCallback(velvet_interface_node::velvet_nodeConfig &config, uint32_t level)
   {
       if(config.cid >=0 ) {
-	  std::cout<<"setting params of "<<config.cid<<" to "<<config.kp<<" "<<config.ki<<" "<<config.kd<<" "<<config.pos_mode<<std::endl;
+	  std::cout<<"setting params of "<<config.cid<<" to "<<config.kp<<" "<<config.ki<<" "<<config.kd<<" "<<config.pos_mode<<" "<<config.vel_mode<<std::endl;
 	  velvet_msgs::SetPID pidcall;
 	  pidcall.request.id = config.cid;
 	  pidcall.request.pval = config.kp;
 	  pidcall.request.ival = config.ki;
 	  pidcall.request.dval = config.kd;
 	  pidcall.request.mode = config.pos_mode ? 'P' : 'C';
+	  pidcall.request.mode = config.vel_mode ? 'V' : pidcall.request.mode;
+
 	  if (!set_pid_.call(pidcall)) {
 	      ROS_ERROR("Unable to call set PID service!");
 	  }
