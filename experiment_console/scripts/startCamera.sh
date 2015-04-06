@@ -8,7 +8,7 @@ while true; do
     echo "Camera node is alive? $IS_DEAD"
     while [ $IS_DEAD -ne 1 ]; do
 	IS_DEAD=`tail -n 1 cameraLog | grep "no new messages" | wc -l`
-	sleep 10
+	sleep 2
     done
     rm cameraLog
     echo "Camera node is not responding, restarting it"
@@ -18,5 +18,5 @@ while true; do
 	pkill -TERM -P $J && kill -9 $J
     done
     echo "Killed camera nodes, restarting in 10 seconds"
-    sleep 10 
+    sleep 3 
 done
