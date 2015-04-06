@@ -5,7 +5,7 @@
     <param name="port" value="/dev/ttyACM0"/>
     <param name="baud" value="115200"/>
   </node>
-  <node name="velvet_node" pkg="velvet_interface_node" type="velvet_node" launch-prefix="xterm -e">
+  <node name="velvet_node" pkg="velvet_interface_node" type="velvet_node">
     <param name="use_ft" value="false"/>
     <remap from="/joint_states" to="/apple/joint_states" />
   </node>
