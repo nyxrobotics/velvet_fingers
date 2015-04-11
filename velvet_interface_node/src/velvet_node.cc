@@ -535,7 +535,7 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
     bool success_grasp = false;
     double ZERO_MOVEMENT_BELT = 0.0001;
     int N_ZERO_BELTS = 20;
-    int N_ZERO_OPEN = 5;
+    int N_ZERO_OPEN = 3;
     double T_MAX_SEC = 15;
     float T_MIN_BELTS = 3000; //3 secs 
     double t_start = getDoubleTime();
@@ -658,8 +658,8 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 	if(my_angle_last < one_beer) {
 	    t_start_belts = getDoubleTime();
 	    poscall.request.id = 2;
-	    poscall.request.pos = 2*MAX_BELT_TRAVEL/3;
-	    poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*200; // 1/5 of remaining time
+	    poscall.request.pos = MAX_BELT_TRAVEL;
+	    poscall.request.time = (T_MAX_SEC - (t_start_belts-t_start))*100; // 1/5 of remaining time
 	    if(poscall.request.time < T_MIN_BELTS) poscall.request.time = T_MIN_BELTS; //give it at least T_MIN seconds to avoid crazy jumps
 	    ROS_INFO("MOVING OPPOSITE DIRECTION: belts should move %f mm in %f sec", poscall.request.pos, poscall.request.time);
 	    if(!set_pos_.call(poscall)) {
@@ -668,6 +668,11 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
 		return true;
 	    }
 	    usleep(poscall.request.time*1000);
+	    if(my_angle_last >= ANGLE_CLOSED) {
+		    std::cerr<<"Probably NOTHING INSIDE GRIPPER, FAIL\n";
+		    this->finishGrasp(res, initial_angle, false);
+		    return true;
+	    }
 	}
 #endif
 	t_start_belts = getDoubleTime();
