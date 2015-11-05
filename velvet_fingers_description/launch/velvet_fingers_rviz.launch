@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <launch>
 
   <!-- this argument you can pass this launch file-->
@@ -7,10 +8,10 @@
   <param name="robot_description"
 	 command="$(find xacro)/xacro.py '$(find velvet_fingers_description)/urdf/velvet_fingers.urdf.xacro' prefix:=$(arg hardware_interface)" />
 
-  <!-- send fake joint values -->
-  <!--node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+  <!-- send fake joint values-->
+   <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
     <param name="use_gui" value="TRUE"/>
-  </node-->
+  </node>
 
   <!-- Combine joint values -->
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher"/>
@@ -19,3 +20,5 @@
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find velvet_fingers_description)/launch/velvet_fingers.rviz"/>
 
 </launch>
+
+

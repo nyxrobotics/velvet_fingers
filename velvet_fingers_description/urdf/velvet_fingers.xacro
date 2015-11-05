@@ -7,6 +7,8 @@
   <xacro:include filename="$(find velvet_fingers_description)/urdf/velvet_fingers.transmission.xacro" />
   <!-- Include Utilities -->
   <xacro:include filename="$(find velvet_fingers_description)/urdf/utilities.xacro" />
+  <!-- Import Rviz colors -->
+  <xacro:include filename="$(find velvet_fingers_description)/urdf/materials.xacro" />
 
   <!-- some constants -->
  <!-- <xacro:property name="safety_controller_k_pos" value="100" />
@@ -36,7 +38,7 @@
         <geometry>
           <mesh filename="package://velvet_fingers_description/meshes/velvet_fingers_palm.stl"/>
         </geometry>
-        <material name="Red"/>
+        <material name="VELVET_FINGERS/Red"/>
       </visual>
 
       <collision>
@@ -44,7 +46,7 @@
         <geometry>
           <mesh filename="package://velvet_fingers_description/meshes/velvet_fingers_palm.stl"/>
         </geometry>
-        <material name="Red"/>
+        <material name="VELVET_FINGERS/Red"/>
       </collision>
     </link>
 
@@ -75,7 +77,7 @@
         <geometry>
           <mesh filename="package://velvet_fingers_description/meshes/velvet_fingers_right.stl"/>
         </geometry>
-        <material name="Orange"/>
+        <material name="VELVET_FINGERS/Orange"/>
       </visual>
 
       <collision>
@@ -83,7 +85,7 @@
         <geometry>
           <mesh filename="package://velvet_fingers_description/meshes/velvet_fingers_right.stl"/>
         </geometry>
-        <material name="Orange"/>
+        <material name="VELVET_FINGERS/Orange"/>
       </collision>
     </link>
 
@@ -115,7 +117,7 @@
         <geometry>
           <mesh filename="package://velvet_fingers_description/meshes/velvet_fingers_left.stl"/> 
         </geometry>
-        <material name="Orange"/>
+        <material name="VELVET_FINGERS/Orange"/>
       </visual>
 
       <collision>
@@ -123,7 +125,7 @@
         <geometry>
           <mesh filename="package://velvet_fingers_description/meshes/velvet_fingers_left.stl"/>
         </geometry>
-        <material name="Orange"/>
+        <material name="VELVET_FINGERS/Orange"/>
       </collision>
     </link>
 
