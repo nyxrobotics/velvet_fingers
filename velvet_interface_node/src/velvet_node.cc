@@ -537,7 +537,7 @@ bool VelvetGripperNode::request_grasp(velvet_interface_node::SmartGrasp::Request
     int N_ZERO_BELTS = 20;
     int N_ZERO_OPEN = 3;
     double T_MAX_SEC = 15;
-    float T_MIN_BELTS = 3000; //3 secs 
+    float T_MIN_BELTS = 6000; //3 secs 
     double t_start = getDoubleTime();
     double tnow = 0, t_start_belts;
     double MIN_PHALANGE=0.2;

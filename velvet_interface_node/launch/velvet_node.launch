@@ -7,6 +7,7 @@
   </node>
   <node name="velvet_node" pkg="velvet_interface_node" type="velvet_node">
     <param name="use_ft" value="false"/>
+    <param name="one_beer" value="1.1"/>
     <remap from="/joint_states" to="/apple/joint_states" />
   </node>
 </launch>
