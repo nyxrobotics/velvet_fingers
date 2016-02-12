@@ -25,7 +25,7 @@
 #include <dynamic_reconfigure/server.h>
 // Auto-generated from cfg/ directory.
 #include <velvet_interface_node/velvet_nodeConfig.h>
-#define BE_HACKED
+//#define BE_HACKED
 
 class VelvetGripperNode
 {
