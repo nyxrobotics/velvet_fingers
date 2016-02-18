@@ -21,7 +21,8 @@
 
 
   <node pkg="tf" type="static_transform_publisher" name="camera_velvet_link"
-        args="0.10 -0.026 0.08 0.02 -0.07 0  /velvet_fingers_palm /camera_link 100" /> <!--hand calibrated --> 
+        args="0.125 -0.026 0.07 3.16 3.2015 0 /velvet_fingers_palm /camera_link 100" /> <!--hand calibrated --> 
+        <!--args="0.10 -0.026 0.08 0.02 -0.07 0  /velvet_fingers_palm /camera_link 100" /--> <!--hand calibrated --> 
         <!--args="0.108 -0.0225 0.0725 0 0 0  /velvet_fingers_palm /camera_link 100" /--> <!--hand calibrated --> 
         <!--args="0.12 -0.01 0.1025 0 0 0  /velvet_fingers_palm /camera_link 100" /-->
   
