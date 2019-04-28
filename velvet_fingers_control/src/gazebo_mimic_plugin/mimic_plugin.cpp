@@ -45,7 +45,7 @@ MimicPlugin::MimicPlugin()
 
 MimicPlugin::~MimicPlugin()
 {
-  event::Events::DisconnectWorldUpdateBegin(this->updateConnection);
+  //event::Events::DisconnectWorldUpdateBegin(this->updateConnection);
 
   kill_sim = true;
 }
@@ -84,7 +84,8 @@ void MimicPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf )
 
 void MimicPlugin::UpdateChild()
 {
-    mimic_joint_->SetAngle(0, math::Angle(joint_->GetAngle(0).Radian()*multiplier_));
+    //mimic_joint_->SetAngle(0, math::Angle(joint_->GetAngle(0).Radian()*multiplier_));
+	mimic_joint_->SetPosition(0,joint_->Position(0));
 }
 
 GZ_REGISTER_MODEL_PLUGIN(MimicPlugin);
