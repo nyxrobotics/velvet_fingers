@@ -1,8 +1,0 @@
-#set the pid parameters for a particular drive and control combination
-int16 id
-char mode #modes are C, P, and V
-float32 pval
-float32 ival
-float32 dval
----
-bool success

@@ -1,5 +1,0 @@
-bool success
-velvet_msgs/GripperState velvet_state
-sensor_msgs/JointState joints
-ft_msgs/FTArray ft_sensors
-geometry_msgs/Transform t_world

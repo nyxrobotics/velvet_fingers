@@ -1,6 +1,0 @@
-#set a drive to a position
-int16 id #drive id
-float32 pos
-float32 time
----
-bool success
