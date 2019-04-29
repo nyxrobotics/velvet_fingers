@@ -99,41 +99,18 @@ void MimicPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf )
 
 void MimicPlugin::UpdateChild()
 {
-    //mimic_joint_->SetAngle(0, math::Angle(joint_->GetAngle(0).Radian()*multiplier_));
-	double parent_force = joint_->GetForce(0);
-	double mimic_force = mimic_joint_->GetForce(0);
-	//physics::JointWrench parent_force = joint_->GetForceTorque(0);
-//	physics::JointWrench parent_wrench = joint_->GetForceTorque(0);
-	physics::JointWrench mimic_wrench = mimic_joint_->GetForceTorque(0);
-//	double parent_force = joint_->GetForceTorque(0).body1Torque[0];
-//	double mimic_force = mimic_joint_->GetForceTorque(0).body1Torque[0];
-	double joint_pose = (joint_->Position(0)+mimic_joint_->Position(0))*0.5;
 
-	//joint_->SetPosition(0,joint_pose);
-//	parent_force += mimic_force;
 
-//	mimic_joint_ -> SetForce(0, 0);
-//	joint_->SetPosition(0,joint_pose);
-//	mimic_joint_->SetPosition(0,joint_pose);
-//	mimic_joint_ -> SetForce(0, 0);
-//	joint_ -> SetForce(0, mimic_force);
-
-//	joint_->SetPosition(0,joint_pose);
-
-//	mimic_joint_ -> SetForce(0, 0);
-//	joint_ -> SetForce(0, parent_force + mimic_force);
-//	mimic_joint_->SetPosition(0, joint_->Position(0));
-
-//	joint_ -> SetForce(0, parent_force + mimic_joint_->GetForce(0));
-
-//	joint_->SetPosition(0, joint_->Position(0));
 	mimic_joint_->SetPosition(0, joint_->Position(0));
 	mimic_joint_->SetVelocity(0,joint_->GetVelocity(0));
+	//	joint_ -> SetForce(0, joint_->GetForce(0) + mimic_joint_->GetForce(0));
 	mimic_joint_ -> SetForce(0, 0);
-	link_->AddForce(mimic_link_->WorldForce());
-	ignition::math::Vector3d ZeroForce(0,0,0);
-	mimic_link_->SetForce(ZeroForce);
 
+
+	link_->AddForce(mimic_link_->WorldForce());
+//	mimic_link_->AddForce(-1.0 *(mimic_link_-> WorldForce()));
+//	ignition::math::Vector3d ZeroForce(0,0,0);
+//	mimic_link_->SetForce(ZeroForce);
 }
 
 GZ_REGISTER_MODEL_PLUGIN(MimicPlugin);
