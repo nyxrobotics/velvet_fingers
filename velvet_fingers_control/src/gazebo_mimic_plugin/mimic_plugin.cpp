@@ -41,6 +41,9 @@ MimicPlugin::MimicPlugin()
 
   joint_.reset();
   mimic_joint_.reset();
+
+  link_.reset();
+  mimic_link_.reset();
 }
 
 MimicPlugin::~MimicPlugin()
@@ -57,17 +60,17 @@ void MimicPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf )
 
 
   joint_name_ = "joint";
-  if (_sdf->HasElement("joint"))
+  if (_sdf->HasElement("joint")){
     joint_name_ = _sdf->GetElement("joint")->Get<std::string>();
-
+  }
   mimic_joint_name_ = "mimicJoint";
-  if (_sdf->HasElement("mimicJoint"))
+  if (_sdf->HasElement("mimicJoint")){
     mimic_joint_name_ = _sdf->GetElement("mimicJoint")->Get<std::string>();
-
+  }
   multiplier_ = 1.0;
-  if (_sdf->HasElement("multiplier"))
+  if (_sdf->HasElement("multiplier")){
     multiplier_ = _sdf->GetElement("multiplier")->Get<double>();
-
+  }
 
   // Get the name of the parent model
   std::string modelName = _sdf->GetParent()->Get<std::string>("name");
@@ -80,12 +83,57 @@ void MimicPlugin::Load(physics::ModelPtr _parent, sdf::ElementPtr _sdf )
 
   joint_ = model_->GetJoint(joint_name_);
   mimic_joint_ = model_->GetJoint(mimic_joint_name_);
+
+  //反力伝達用
+  link_name_ = "link";
+  if (_sdf->HasElement("link")){
+    link_name_ = _sdf->GetElement("link")->Get<std::string>();
+  }
+  mimic_link_name_ = "mimicJoint";
+  if (_sdf->HasElement("mimicLink")){
+    mimic_link_name_ = _sdf->GetElement("mimicLink")->Get<std::string>();
+  }
+  link_ = model_->GetLink(link_name_);
+  mimic_link_ = model_->GetLink(mimic_link_name_);
 }
 
 void MimicPlugin::UpdateChild()
 {
     //mimic_joint_->SetAngle(0, math::Angle(joint_->GetAngle(0).Radian()*multiplier_));
-	mimic_joint_->SetPosition(0,joint_->Position(0));
+	double parent_force = joint_->GetForce(0);
+	double mimic_force = mimic_joint_->GetForce(0);
+	//physics::JointWrench parent_force = joint_->GetForceTorque(0);
+//	physics::JointWrench parent_wrench = joint_->GetForceTorque(0);
+	physics::JointWrench mimic_wrench = mimic_joint_->GetForceTorque(0);
+//	double parent_force = joint_->GetForceTorque(0).body1Torque[0];
+//	double mimic_force = mimic_joint_->GetForceTorque(0).body1Torque[0];
+	double joint_pose = (joint_->Position(0)+mimic_joint_->Position(0))*0.5;
+
+	//joint_->SetPosition(0,joint_pose);
+//	parent_force += mimic_force;
+
+//	mimic_joint_ -> SetForce(0, 0);
+//	joint_->SetPosition(0,joint_pose);
+//	mimic_joint_->SetPosition(0,joint_pose);
+//	mimic_joint_ -> SetForce(0, 0);
+//	joint_ -> SetForce(0, mimic_force);
+
+//	joint_->SetPosition(0,joint_pose);
+
+//	mimic_joint_ -> SetForce(0, 0);
+//	joint_ -> SetForce(0, parent_force + mimic_force);
+//	mimic_joint_->SetPosition(0, joint_->Position(0));
+
+//	joint_ -> SetForce(0, parent_force + mimic_joint_->GetForce(0));
+
+//	joint_->SetPosition(0, joint_->Position(0));
+	mimic_joint_->SetPosition(0, joint_->Position(0));
+	mimic_joint_->SetVelocity(0,joint_->GetVelocity(0));
+	mimic_joint_ -> SetForce(0, 0);
+	link_->AddForce(mimic_link_->WorldForce());
+	ignition::math::Vector3d ZeroForce(0,0,0);
+	mimic_link_->SetForce(ZeroForce);
+
 }
 
 GZ_REGISTER_MODEL_PLUGIN(MimicPlugin);

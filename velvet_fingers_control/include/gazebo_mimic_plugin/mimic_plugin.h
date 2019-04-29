@@ -41,7 +41,7 @@
 #include "gazebo/common/Time.hh"
 #include "gazebo/common/Plugin.hh"
 #include "gazebo/common/Events.hh"
-
+#include "gazebo/physics/JointWrench.hh"
 namespace gazebo
 {
   class MimicPlugin : public ModelPlugin
@@ -68,6 +68,13 @@ namespace gazebo
 
       physics::JointPtr joint_;
       physics::JointPtr mimic_joint_;
+
+      //反力伝達用
+      std::string link_name_;
+      std::string mimic_link_name_;
+      physics::LinkPtr link_;
+      physics::LinkPtr mimic_link_;
+
 
       // Pointer to the update event connection
       event::ConnectionPtr updateConnection;
