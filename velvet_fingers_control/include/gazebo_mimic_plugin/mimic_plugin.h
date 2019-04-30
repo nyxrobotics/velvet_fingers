@@ -42,6 +42,10 @@
 #include "gazebo/common/Plugin.hh"
 #include "gazebo/common/Events.hh"
 #include "gazebo/physics/JointWrench.hh"
+
+#include "ros/ros.h"
+#include "ros/console.h"
+
 namespace gazebo
 {
   class MimicPlugin : public ModelPlugin
@@ -72,9 +76,10 @@ namespace gazebo
       //反力伝達用
       std::string link_name_;
       std::string mimic_link_name_;
+      std::string parent_link_name_;
       physics::LinkPtr link_;
       physics::LinkPtr mimic_link_;
-
+      physics::LinkPtr parent_link_;
 
       // Pointer to the update event connection
       event::ConnectionPtr updateConnection;
