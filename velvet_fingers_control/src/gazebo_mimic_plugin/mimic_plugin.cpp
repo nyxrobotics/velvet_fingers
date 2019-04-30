@@ -108,7 +108,7 @@ void MimicPlugin::UpdateChild()
 	//仕組み：従属関節を、位置入力・力出力の系として受動的に運動させることで平行リンクを再現する
 	//①従属関節の角度は、強制的に基準関節の角度で上書きする(関節速度も計算に使用しているらしいので上書きする)
 	//②従属対偶に外部から加わる力・トルクを、従属関節周りの力・トルクに変換→従属関節周りのトルクのみ基準関節周りのトルクに伝達
-	//※従属リンクの摩擦は0にしないとうまく動かない。応答が1ステップ遅れてしまうのが原因と思われる
+	//※従属リンクの摩擦は0にしないと滑るような動きのバグが発生する。応答が1ステップ遅れてしまうのが原因と思われる
 
 	//ここから①
 	ignition::math::Vector3d joint_position(joint_->Position(0),joint_->Position(1),joint_->Position(2));
@@ -119,12 +119,12 @@ void MimicPlugin::UpdateChild()
 	mimic_force = mimic_link_->RelativeForce();
 	mimic_torque = mimic_link_->RelativeTorque();
 
-	mimic_joint_ -> SetPosition(0, joint_position.X());
-	mimic_joint_ -> SetPosition(1, joint_position.Y());
-	mimic_joint_ -> SetPosition(2, joint_position.Z());
-	mimic_joint_ -> SetVelocity(0,joint_velocity.X());
-	mimic_joint_ -> SetVelocity(1,joint_velocity.Y());
-	mimic_joint_ -> SetVelocity(2,joint_velocity.Z());
+	mimic_joint_ -> SetPosition(0, multiplier_ * joint_position.X());
+	mimic_joint_ -> SetPosition(1, multiplier_ * joint_position.Y());
+	mimic_joint_ -> SetPosition(2, multiplier_ * joint_position.Z());
+	mimic_joint_ -> SetVelocity(0, multiplier_ * joint_velocity.X());
+	mimic_joint_ -> SetVelocity(1, multiplier_ * joint_velocity.Y());
+	mimic_joint_ -> SetVelocity(2, multiplier_ * joint_velocity.Z());
 	mimic_joint_ -> SetForce(0,0);
 	mimic_joint_ -> SetForce(1,0);
 	mimic_joint_ -> SetForce(2,0);
@@ -132,15 +132,15 @@ void MimicPlugin::UpdateChild()
 	//ここから②
 	//Relativeがつく場合、リンクの原点を基準とする力・トルクになる(例：link_-> AddRelativeForce(mimic_link_->RelativeForce());)
 	//Worldがつく場合、ワールド座標系にを基準とする力・トルクになる(例：link_-> AddForce(mimic_link_->WorldForce());)
-	//リンク原点が親とのジョイント位置に一致すると仮定した
+	//URDFでリンク原点が親とのジョイント位置に一致していることが前提(※注意！)
 	//挙動を見る限り、すでに原点周りのトルクと、原点を並進で動かそうとする力に分解されている
-	//従属リンク(mimic_link_)について、原点並進力はそのまま、原点周りのトルクのみ基準リンク(link_)に伝達する(mimic_linkのトルクはなくなったとみなす)
+	//従属リンク(mimic_link_)について、原点並進力はそのまま、原点周りのトルクのみ基準リンク(link_)に伝達する(mimic_linkの原点周りのトルクはなくなったとみなす)
 //	link_-> AddForce(mimic_link_->WorldForce());
 //	link_-> AddTorque(mimic_link_->WorldTorque());
 //	link_-> AddRelativeForce(mimic_force);
 //	mimic_torque.X(0);
 //	mimic_torque.Z(0);
-	link_-> AddRelativeTorque(mimic_torque);
+	link_-> AddRelativeTorque(mimic_torque / multiplier_);
 //	link_-> AddRelativeForce(mimic_link_->RelativeForce());
 //	link_-> AddRelativeTorque(mimic_link_->RelativeTorque());
 //	parent_link_-> AddRelativeForce(-1.0*mimic_force);
