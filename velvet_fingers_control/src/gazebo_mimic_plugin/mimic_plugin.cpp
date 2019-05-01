@@ -114,20 +114,28 @@ void MimicPlugin::UpdateChild()
 	ignition::math::Vector3d joint_position(joint_->Position(0),joint_->Position(1),joint_->Position(2));
 	ignition::math::Vector3d joint_velocity(joint_->GetVelocity(0),joint_->GetVelocity(1),joint_->GetVelocity(2));
 	ignition::math::Vector3d joint_force(joint_->GetForce(0),joint_->GetForce(1),joint_->GetForce(2));
-	ignition::math::Vector3d mimic_force;
-	ignition::math::Vector3d mimic_torque;
-	mimic_force = mimic_link_->RelativeForce();
-	mimic_torque = mimic_link_->RelativeTorque();
-
-	mimic_joint_ -> SetPosition(0, multiplier_ * joint_position.X());
-	mimic_joint_ -> SetPosition(1, multiplier_ * joint_position.Y());
-	mimic_joint_ -> SetPosition(2, multiplier_ * joint_position.Z());
+	ignition::math::Vector3d mimic_joint_force(mimic_joint_->GetForce(0),mimic_joint_->GetForce(1),mimic_joint_->GetForce(2));
+	ignition::math::Vector3d mimic_link_relative_force;
+	ignition::math::Vector3d mimic_link_relative_torque;
+	ignition::math::Vector3d mimic_link_world_torque;
+	mimic_link_relative_force = mimic_link_->RelativeForce();
+	mimic_link_relative_torque = mimic_link_->RelativeTorque();
+	mimic_link_world_torque = mimic_link_->WorldTorque();
+	ignition::math::Vector3d Zero3d(0,0,0);
+	mimic_joint_ -> SetPosition(0, multiplier_ * joint_position.X(),true);
+	mimic_joint_ -> SetPosition(1, multiplier_ * joint_position.Y(),true);
+	mimic_joint_ -> SetPosition(2, multiplier_ * joint_position.Z(),true);
+//	mimic_joint_ -> SetPosition(0, multiplier_ * joint_position.X());
+//	mimic_joint_ -> SetPosition(1, multiplier_ * joint_position.Y());
+//	mimic_joint_ -> SetPosition(2, multiplier_ * joint_position.Z());
 	mimic_joint_ -> SetVelocity(0, multiplier_ * joint_velocity.X());
 	mimic_joint_ -> SetVelocity(1, multiplier_ * joint_velocity.Y());
 	mimic_joint_ -> SetVelocity(2, multiplier_ * joint_velocity.Z());
-//	mimic_joint_ -> SetForce(0,0);
-//	mimic_joint_ -> SetForce(1,0);
-//	mimic_joint_ -> SetForce(2,0);
+//	mimic_joint_ -> SetVelocity(0, 0);
+//	mimic_joint_ -> SetVelocity(1, 0);
+//	mimic_joint_ -> SetVelocity(2, 0);
+	mimic_link_-> SetAngularAccel(link_->RelativeAngularAccel());
+	mimic_link_-> SetAngularVel(link_->RelativeAngularVel());
 
 	//ここから②
 	//Relativeがつく場合、リンクの原点を基準とする力・トルクになる(例：link_-> AddRelativeForce(mimic_link_->RelativeForce());)
@@ -135,30 +143,17 @@ void MimicPlugin::UpdateChild()
 	//URDFでリンク原点が親とのジョイント位置に一致していることが前提(※注意！)
 	//挙動を見る限り、すでに原点周りのトルクと、原点を並進で動かそうとする力に分解されている
 	//従属リンク(mimic_link_)について、原点並進力はそのまま、原点周りのトルクのみ基準リンク(link_)に伝達する(mimic_linkの原点周りのトルクはなくなったとみなす)
-	link_-> AddRelativeTorque(mimic_torque / multiplier_);
-//	link_-> AddRelativeForce(mimic_force / multiplier_);
-//	link_-> AddForce(mimic_link_->WorldForce());
-//	link_-> AddTorque(mimic_link_->WorldTorque());
-//	link_-> AddRelativeForce(mimic_force);
-//	mimic_torque.X(0);
-//	mimic_torque.Z(0);
-//	link_-> AddRelativeForce(mimic_link_->RelativeForce());
-//	link_-> AddRelativeTorque(mimic_link_->RelativeTorque());
-//	parent_link_-> AddRelativeForce(-1.0*mimic_force);
-//	parent_link_-> AddRelativeTorque(-1.0*mimic_torque);
-//	mimic_link_-> AddRelativeForce(-1.0*mimic_force);
-//	mimic_link_-> AddRelativeTorque(-1.0*mimic_torque);
 
-	ignition::math::Vector3d ZeroForce(0,0,0);
-	mimic_link_-> SetTorque(ZeroForce);
-//	mimic_link_-> SetForce(ZeroForce);
-//	mimic_link_-> AddRelativeForce(mimic_force);
-
-//	mimic_link_-> AddRelativeTorque(-1.0*mimic_torque);
-//	parent_link_-> AddForce(mimic_link_->WorldForce());
-//	parent_link_-> AddForce(-1.0*mimic_link_->WorldForce());
-//	parent_link_-> AddTorque(-1.0*mimic_link_->WorldTorque());
-
+	link_-> AddRelativeTorque(mimic_link_relative_torque / multiplier_);
+//	link_-> AddTorque(mimic_link_world_torque / multiplier_);
+//	link_-> AddTorque(mimic_link_relative_torque / multiplier_);
+	mimic_link_-> SetTorque(Zero3d);
+//	joint_ -> SetForce(0, (mimic_joint_force.X() / multiplier_) + joint_force.X() );
+//	joint_ -> SetForce(1, (mimic_joint_force.Y() / multiplier_) + joint_force.Y() );
+//	joint_ -> SetForce(2, (mimic_joint_force.Z() / multiplier_) + joint_force.Z() );
+//	mimic_joint_ -> SetForce(0, 0);
+//	mimic_joint_ -> SetForce(1, 0);
+//	mimic_joint_ -> SetForce(2, 0);
 }
 
 GZ_REGISTER_MODEL_PLUGIN(MimicPlugin);
